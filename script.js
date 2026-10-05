@@ -34,7 +34,7 @@ let savedSchedulePresets = JSON.parse(localStorage.getItem('mySchedulePresets'))
 let activeCategoryFilter = "すべて";
 let editingTaskId = null;
 let editingMemoTaskId = null;
-let editingSchedItemId = null; // スケジュール編集対象ID
+let editingSchedItemId = null;
 let activeCellKey = null;
 let selectedColor = "#F38181";
 let schedSelectedColor = pastel30Colors[0];
@@ -151,9 +151,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setupColorPicker();
     setupAuthListeners();
 
-    // キャンバス上のクリック/タップイベント登録
     scheduleCanvas.addEventListener('click', handleCanvasClick);
-
     updateDashboard();
 
     if ('serviceWorker' in navigator) {
@@ -170,7 +168,6 @@ window.addEventListener('online', async () => {
     }, 1500);
 });
 
-// サイドバーコントロール
 function setupSidebarEvents() {
     openSidebarBtn.onclick = () => {
         sidebar.classList.add('open');
@@ -204,7 +201,6 @@ function closeSidebar() {
     sidebarOverlay.style.display = 'none';
 }
 
-// ダッシュボード更新
 function updateDashboard() {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
@@ -278,7 +274,6 @@ function renderDueThisWeekTasks() {
     });
 }
 
-// 30色カラーパレット初期生成
 function init30ColorPicker() {
     const grid = document.getElementById('schedColorPicker');
     grid.innerHTML = '';
@@ -517,19 +512,19 @@ function getClassSchedulesForDay(dayChar, dateStr) {
     return result;
 }
 
-// キャンバスクリック時の処理（予定選択＆空欄タップ追加）
 function handleCanvasClick(e) {
     const rect = scheduleCanvas.getBoundingClientRect();
-    const x = e.clientX - rect.left - (scheduleCanvas.width / 2);
-    const y = e.clientY - rect.top - (scheduleCanvas.height / 2);
+    const cssWidth = rect.width;
+    const cssHeight = rect.height;
+
+    const x = e.clientX - rect.left - (cssWidth / 2);
+    const y = e.clientY - rect.top - (cssHeight / 2);
 
     const radius = Math.sqrt(x * x + y * y);
-    const chartRadius = 160;
+    const chartRadius = cssWidth * (160 / 380);
 
-    // ドーナツリング部分のタップか判定
     if (radius < chartRadius * 0.4 || radius > chartRadius) return;
 
-    // 角度を分（0〜1440分）に変換
     let angle = Math.atan2(y, x) + Math.PI / 2;
     if (angle < 0) angle += Math.PI * 2;
     const clickedMin = Math.floor((angle / (Math.PI * 2)) * 1440);
@@ -538,10 +533,8 @@ function handleCanvasClick(e) {
     const clickedItem = items.find(item => clickedMin >= item.startMin && clickedMin < item.endMin);
 
     if (clickedItem) {
-        // タップした予定の編集フォームを開く
         startEditingSchedItem(clickedItem);
     } else {
-        // 空欄部分をタップ: 選択された時間で新規追加フォームを開く
         let nextStart = 1440;
         items.forEach(item => {
             if (item.startMin > clickedMin && item.startMin < nextStart) {
@@ -584,16 +577,25 @@ function startEditingSchedItem(item) {
     window.scrollTo({ top: scheduleFormContent.offsetTop - 60, behavior: 'smooth' });
 }
 
-// 24時間円グラフ描画（文字重なり防止＆最適化）
+// 高画質24時間円グラフ描画 (Retina/デバイスピクセル比対応)
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
-    const width = scheduleCanvas.width;
-    const height = scheduleCanvas.height;
-    const centerX = width / 2;
-    const centerY = height / 2;
+    const dpr = window.devicePixelRatio || 1;
+    const baseWidth = 380;
+    const baseHeight = 380;
+
+    // Canvasの物理ピクセル数をデバイスピクセル比に合わせて拡大設定
+    scheduleCanvas.width = baseWidth * dpr;
+    scheduleCanvas.height = baseHeight * dpr;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    const centerX = baseWidth / 2;
+    const centerY = baseHeight / 2;
     const radius = 160;
 
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, baseWidth, baseHeight);
 
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -614,7 +616,6 @@ function draw24HourChart(items) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // 文字の重なり防止調整 (12分以上 = 描画対象)
         const durationMin = item.endMin - item.startMin;
         if (durationMin >= 12) {
             const midAngle = (startAngle + endAngle) / 2;
@@ -629,7 +630,6 @@ function draw24HourChart(items) {
 
             let labelText = item.title.replace(/^🏫\s*/, '');
 
-            // 短い時間枠（45分未満）での文字省略
             if (durationMin < 45) {
                 if (labelText.includes('休憩')) labelText = '☕';
                 else if (labelText.length > 3) labelText = labelText.substring(0, 2) + '..';
@@ -683,6 +683,8 @@ function draw24HourChart(items) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('24H Schedule', centerX, centerY);
+
+    ctx.restore();
 }
 
 function renderScheduleList(items) {
@@ -796,7 +798,6 @@ saveSchedBtn.addEventListener('click', async () => {
     const weeklyKey = `weekly_${d.getDay()}`;
 
     if (editingSchedItemId) {
-        // 上書き編集
         if (dailySchedules[selectedSchedDate]) {
             dailySchedules[selectedSchedDate] = dailySchedules[selectedSchedDate].map(i => i.id === editingSchedItemId ? newItem : i);
         }
@@ -804,7 +805,6 @@ saveSchedBtn.addEventListener('click', async () => {
             dailySchedules[weeklyKey] = dailySchedules[weeklyKey].map(i => i.id === editingSchedItemId ? newItem : i);
         }
     } else {
-        // 新規追加
         if (isWeekly) {
             if (!dailySchedules[weeklyKey]) dailySchedules[weeklyKey] = [];
             dailySchedules[weeklyKey].push(newItem);
@@ -1192,7 +1192,7 @@ function openCellModal(key, day, period) {
         modalSubjectTitle.textContent = cellData.subject;
         modalSubjectMeta.textContent = `${day}曜 ${period}限 | 👤 ${cellData.teacher || '教員未登録'} | 🏫 ${cellData.room || '教室未登録'}`;
         if (cellData.email) modalTeacherEmail.innerHTML = `✉️ <a href="mailto:${cellData.email}">${cellData.email}</a>`;
-        else modalTeacherEmail.textContent = '✉️ メールアドレス未登録';
+        else modalTeacherEmail.textContent = '✉️️ メールアドレス未登録';
 
         renderMemos(cellData.memos || []);
         modalDetailView.style.display = 'block';

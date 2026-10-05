@@ -95,9 +95,9 @@
             </div>
             <p id="scheduleDayOfWeekText" class="day-of-week-text"></p>
 
-            <!-- 円グラフ表示エリア（タップ操作可能） -->
+            <!-- 高精度SVGベクター円グラフ表示エリア -->
             <div class="chart-container">
-                <canvas id="scheduleCanvas" width="380" height="380" style="cursor: pointer;"></canvas>
+                <svg id="scheduleSvg" viewBox="0 0 380 380" style="width: 100%; max-width: 380px; height: auto; cursor: pointer;"></svg>
             </div>
             <p style="text-align: center; font-size: 0.78rem; color: #888; margin-top: -6px;">💡 グラフの扇形タップで編集、空欄タップでその時間に予定を追加できます</p>
 
