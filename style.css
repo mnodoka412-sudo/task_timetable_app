@@ -1,0 +1,367 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f5f3ef;
+    color: #4a4238;
+    margin: 0;
+    padding: 12px;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    background: #ffffff;
+    width: 100%;
+    max-width: 600px;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.tab-navigation {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: bold;
+    border: 2px solid #e0dacf;
+    background-color: #faf8f5;
+    color: #7a6f60;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    background-color: #4a90e2;
+    color: #ffffff;
+    border-color: #4a90e2;
+}
+
+.view-section { display: none; }
+.view-section.active { display: block; }
+
+h1 {
+    font-size: 1.4rem;
+    color: #332d27;
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
+.timetable-guide {
+    font-size: 0.8rem;
+    color: #888;
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+h2 { font-size: 1.05rem; color: #5c5246; margin-bottom: 10px; }
+h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
+
+.section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #f0ece1;
+}
+
+.message-area {
+    font-size: 0.85rem;
+    color: #27ae60;
+    text-align: center;
+    min-height: 20px;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+/* 時間割表示 */
+.timetable-wrapper { overflow-x: auto; }
+
+.timetable {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.timetable th {
+    padding: 8px 4px;
+    font-size: 0.85rem;
+    color: #7a6f60;
+    text-align: center;
+    border-bottom: 2px solid #e0dacf;
+}
+
+.timetable th.time-header { width: 44px; }
+
+.timetable td {
+    height: 90px;
+    padding: 2px;
+    vertical-align: top;
+    border: 1px solid #f2eee6;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.timetable td:hover { background-color: #f0f7ff; }
+
+.time-cell {
+    text-align: center;
+    font-size: 0.68rem;
+    color: #9e9180;
+    background-color: #fbf9f5;
+    line-height: 1.2;
+    cursor: default !important;
+}
+
+.time-num {
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: #4a4238;
+    display: block;
+    margin-bottom: 2px;
+}
+
+/* 科目カード */
+.subject-card {
+    height: 100%;
+    border-radius: 6px;
+    padding: 4px 3px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #2c3e50;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.subject-name { font-weight: bold; line-height: 1.2; }
+.teacher-name { font-size: 0.68rem; opacity: 0.85; margin-top: 2px; }
+
+.room-badge {
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 0.65rem;
+    color: #444;
+    font-weight: bold;
+    display: inline-block;
+    margin-top: 2px;
+}
+
+.memo-count-badge {
+    font-size: 0.65rem;
+    color: #1e824c;
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 4px;
+    padding: 1px 3px;
+}
+
+.empty-cell-placeholder {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ccc;
+    font-size: 1.2rem;
+}
+
+/* ポップアップ（モーダル）デザイン */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.modal-content {
+    background: #ffffff;
+    width: 100%;
+    max-width: 480px;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-close-btn {
+    position: absolute;
+    top: 12px; right: 16px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.modal-meta {
+    font-size: 0.88rem;
+    color: #666;
+    margin-top: -4px;
+    margin-bottom: 4px;
+}
+
+.modal-email {
+    font-size: 0.85rem;
+    color: #2980b9;
+    margin-top: 0;
+    margin-bottom: 12px;
+    word-break: break-all;
+}
+
+.modal-email a {
+    color: #2980b9;
+    text-decoration: underline;
+}
+
+.modal-hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 16px 0;
+}
+
+.modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.modal-form label { font-size: 0.85rem; font-weight: bold; color: #555; }
+.modal-form input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+
+/* カラーピッカーグループ */
+.color-picker-group {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.color-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    box-sizing: border-box;
+    border: 3px solid transparent;
+    transition: transform 0.15s, border-color 0.15s;
+}
+
+.color-circle:hover {
+    transform: scale(1.1);
+}
+
+.color-circle.active {
+    border-color: #333333;
+    transform: scale(1.15);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.modal-form-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.btn-primary { background: #4a90e2; color: #fff; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-secondary { background: #f0ece1; color: #5c5246; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-danger { background: #e74c3c; color: #fff; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+/* メモ機能スタイル */
+.memo-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.memo-input-group textarea {
+    width: 100%;
+    height: 60px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+}
+
+.memo-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.memo-list li {
+    background: #faf8f5;
+    border: 1px solid #eae5db;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.88rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.memo-date {
+    font-size: 0.72rem;
+    color: #888;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.memo-del-btn {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 4px;
+}
+
+/* フォーム・入力要素 */
+.input-group input, .input-group select, #dueDateTimeInput, #repeatTypeSelect, #repeatUntilInput {
+    padding: 10px; border: 1px solid #dcd6cd; border-radius: 8px; font-size: 0.9rem; background-color: #faf8f5; box-sizing: border-box;
+}
+
+#addTaskBtn { width: 100%; background-color: #27ae60; color: white; padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+
+.input-group { display: flex; gap: 8px; margin-bottom: 8px; }
+.setting-card { background-color: #faf8f5; border: 1px solid #eae5db; padding: 10px; border-radius: 8px; margin-top: 8px; }
+.setting-label { font-size: 0.9rem; font-weight: bold; color: #5c5246; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.setting-label-text { font-size: 0.9rem; font-weight: bold; color: #5c5246; margin-bottom: 6px; }
+.sub-input-area { margin-top: 8px; }
+#repeatTypeSelect { width: 100%; }
+.repeat-days-title { font-size: 0.85rem; color: #666; margin-bottom: 6px; }
+.days-checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.days-checkbox-group label { font-size: 0.85rem; background: #fff; border: 1px solid #ccc; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.repeat-until-group { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #666; }
+
+/* タスクリスト */
+.notebook-task-list { list-style: none; padding: 0; margin: 0; }
+.notebook-task-list li { display: flex; align-items: center; justify-content: space-between; padding: 12px 6px; border-bottom: 2px dashed #d0c8b8; }
+.task-left { display: flex; align-items: center; gap: 12px; flex: 1; }
+.custom-checkbox { width: 22px; height: 22px; border: 2px solid #6e5f4b; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; background-color: #fff; flex-shrink: 0; }
+.custom-checkbox.checked { background-color: #6e5f4b; }
+.custom-checkbox.checked::after { content: '✓'; color: #ffffff; font-size: 16px; font-weight: bold; }
+.task-info { display: flex; flex-direction: column; gap: 2px; }
+.task-text { font-size: 0.98rem; color: #4a4238; }
+.task-text.completed { text-decoration: line-through; color: #aaa; }
+.task-tags { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 2px; }
+.task-tag { background: #e8f4f8; color: #2980b9; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+.due-tag { background: #fff3cd; color: #856404; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+.repeat-tag { background: #e8f8f0; color: #27ae60; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+.delete-btn { background: transparent; color: #c0392b; border: none; cursor: pointer; font-size: 0.85rem; opacity: 0.6; }
+.delete-btn:hover { opacity: 1; }

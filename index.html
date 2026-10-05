@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>週時間割＆タスク管理アプリ</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+    <div class="container">
+        <!-- 画面切り替え用ナビゲーションタブ -->
+        <div class="tab-navigation">
+            <button id="tabTimetableBtn" class="tab-btn active">📅 時間割</button>
+            <button id="tabTaskBtn" class="tab-btn">📝 タスク管理</button>
+        </div>
+
+        <!-- メッセージ表示エリア -->
+        <div id="messageArea" class="message-area"></div>
+
+        <!-- ==================== 1. 時間割画面 ==================== -->
+        <div id="viewTimetable" class="view-section active">
+            <h1>週時間割</h1>
+            <p class="timetable-guide">💡 コマをタップすると、科目の確認・メモ入力・編集ができます。</p>
+            
+            <div class="timetable-wrapper">
+                <table class="timetable">
+                    <thead>
+                        <tr>
+                            <th class="time-header"></th>
+                            <th>月</th>
+                            <th>火</th>
+                            <th>水</th>
+                            <th>木</th>
+                            <th>金</th>
+                        </tr>
+                    </thead>
+                    <tbody id="timetableBody">
+                        <!-- JSで1〜5限を自動生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ==================== 2. タスク管理画面 ==================== -->
+        <div id="viewTask" class="view-section">
+            <h1>タスク管理</h1>
+
+            <div class="section">
+                <h2>➕ タスクの追加</h2>
+                <div class="input-group">
+                    <input type="text" id="taskInput" placeholder="やることを入力...">
+                    <select id="subjectSelect">
+                        <option value="">(科目なし)</option>
+                    </select>
+                </div>
+
+                <div class="setting-card">
+                    <label class="setting-label">
+                        <input type="checkbox" id="hasDueCheckbox"> ⏰ 期限を設定する
+                    </label>
+                    <div id="dueDateInputArea" class="sub-input-area" style="display: none;">
+                        <input type="datetime-local" id="dueDateTimeInput">
+                    </div>
+                </div>
+
+                <div class="setting-card">
+                    <div class="setting-label-text">🔄 繰り返しの設定</div>
+                    <select id="repeatTypeSelect">
+                        <option value="none">繰り返しなし</option>
+                        <option value="weekly">毎週指定曜日</option>
+                        <option value="biweekly">隔週（2週間ごと）指定曜日</option>
+                    </select>
+
+                    <div id="repeatSubArea" class="sub-input-area" style="display: none;">
+                        <div class="repeat-days-title">繰り返す曜日を選択:</div>
+                        <div class="days-checkbox-group">
+                            <label><input type="checkbox" class="repeat-day-cb" value="月">月</label>
+                            <label><input type="checkbox" class="repeat-day-cb" value="火">火</label>
+                            <label><input type="checkbox" class="repeat-day-cb" value="水">水</label>
+                            <label><input type="checkbox" class="repeat-day-cb" value="木">木</label>
+                            <label><input type="checkbox" class="repeat-day-cb" value="金">金</label>
+                            <label><input type="checkbox" class="repeat-day-cb" value="土">土</label>
+                            <label><input type="checkbox" class="repeat-day-cb" value="日">日</label>
+                        </div>
+                        <div class="repeat-until-group">
+                            <label for="repeatUntilInput">いつまで繰り返すか (終了日):</label>
+                            <input type="date" id="repeatUntilInput">
+                        </div>
+                    </div>
+                </div>
+
+                <button id="addTaskBtn">💾 タスク追加</button>
+            </div>
+
+            <div class="section">
+                <h2>📋 やることリスト</h2>
+                <ul id="taskList" class="notebook-task-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ポップアップモーダル（時間割編集・メモ） ==================== -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <span id="modalCloseBtn" class="modal-close-btn">&times;</span>
+            
+            <!-- 1. 詳細＆メモ確認ビュー -->
+            <div id="modalDetailView">
+                <h2 id="modalSubjectTitle">科目名</h2>
+                <p id="modalSubjectMeta" class="modal-meta"></p>
+                <p id="modalTeacherEmail" class="modal-email"></p>
+
+                <div class="modal-actions">
+                    <button id="modalEditBtn" class="btn-secondary">✏️ 科目を編集する</button>
+                </div>
+
+                <hr class="modal-hr">
+
+                <h3>📝 科目メモ一覧</h3>
+                <div class="memo-input-group">
+                    <textarea id="memoTextInput" placeholder="授業のメモや次回連絡事項を入力..."></textarea>
+                    <button id="addMemoBtn" class="btn-primary">メモを追加</button>
+                </div>
+                <ul id="memoList" class="memo-list"></ul>
+            </div>
+
+            <!-- 2. 科目編集ビュー -->
+            <div id="modalEditView" style="display: none;">
+                <h2 id="modalFormTitle">📚 科目の編集</h2>
+                <div class="modal-form">
+                    <label>科目名:</label>
+                    <input type="text" id="modalSubjectInput" placeholder="例: 数学">
+                    
+                    <label>コマのテーマカラー:</label>
+                    <div class="color-picker-group">
+                        <div class="color-circle" data-color="#F38181" style="background-color: #F38181;"></div>
+                        <div class="color-circle" data-color="#FCE38A" style="background-color: #FCE38A;"></div>
+                        <div class="color-circle" data-color="#EAFFD0" style="background-color: #EAFFD0;"></div>
+                        <div class="color-circle" data-color="#95E1D3" style="background-color: #95E1D3;"></div>
+                    </div>
+
+                    <label>教授・教員名:</label>
+                    <input type="text" id="modalTeacherInput" placeholder="例: 山田太郎">
+
+                    <label>教授のメールアドレス:</label>
+                    <input type="email" id="modalEmailInput" placeholder="例: taro.yamada@example.ac.jp">
+                    
+                    <label>教室名:</label>
+                    <input type="text" id="modalRoomInput" placeholder="例: 912">
+
+                    <div class="modal-form-buttons">
+                        <button id="saveSubjectBtn" class="btn-primary">💾 保存する</button>
+                        <button id="deleteSubjectBtn" class="btn-danger">🗑️ このコマを削除</button>
+                        <button id="cancelEditBtn" class="btn-secondary">キャンセル</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
