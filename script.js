@@ -1,20 +1,13 @@
-// 30色のくすみパステルカラー定義（6系 × 濃淡5段階）
+// 30色のくすみパステルカラー定義
 const pastel30Colors = [
-    // レッド・ピンク系
     "#FADBD8", "#F5B7B1", "#F1948A", "#EC7063", "#E74C3C",
-    // オレンジ・イエロー系
     "#FDEBD0", "#F8C471", "#F39C12", "#FCF3CF", "#F7DC6F",
-    // グリーン系
     "#D4EFDF", "#A9DFBF", "#7DCEA0", "#D5F5E3", "#52BE80",
-    // ブルー・アクア系
     "#D4E6F1", "#A9CCE3", "#7FB3D5", "#E8F8F5", "#A3E4D7",
-    // パープル・ピンク系
     "#E8DAEF", "#BB8FCE", "#9B59B6", "#FDEDEC", "#F5EEF8",
-    // ブラウン・グレー系
     "#E5E8E8", "#CCD1D1", "#BDC3C7", "#EDBB99", "#DC7633"
 ];
 
-// 日時＆カレンダー用の定数
 const times = [
     { period: 1, text: "08:50\n10:20", startMin: 8 * 60 + 50, endMin: 10 * 60 + 20 },
     { period: 2, text: "10:30\n12:00", startMin: 10 * 60 + 30, endMin: 12 * 60 + 0 },
@@ -46,16 +39,18 @@ let selectedColor = "#F38181";
 let schedSelectedColor = pastel30Colors[0];
 let currentUser = null;
 
-// 1日スケジュールの選択中日付
 let selectedSchedDate = new Date().toISOString().split('T')[0];
 
-// 要素取得
-const tabScheduleBtn = document.getElementById('tabScheduleBtn');
-const tabTimetableBtn = document.getElementById('tabTimetableBtn');
-const tabTaskBtn = document.getElementById('tabTaskBtn');
-const viewSchedule = document.getElementById('viewSchedule');
-const viewTimetable = document.getElementById('viewTimetable');
-const viewTask = document.getElementById('viewTask');
+// サイドバー＆ナビゲーション要素
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const openSidebarBtn = document.getElementById('openSidebarBtn');
+const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+
+// ダッシュボード要素
+const currentScheduleText = document.getElementById('currentScheduleText');
+const nextScheduleText = document.getElementById('nextScheduleText');
+const dueThisWeekTaskList = document.getElementById('dueThisWeekTaskList');
 
 // スケジュール要素
 const scheduleDateInput = document.getElementById('scheduleDateInput');
@@ -138,11 +133,11 @@ const listTabContainer = document.getElementById('listTabContainer');
 // アプリ初期化
 window.addEventListener('DOMContentLoaded', () => {
     scheduleDateInput.value = selectedSchedDate;
+    setupSidebarEvents();
     init30ColorPicker();
     initDurationSelectOptions();
     renderPresetButtons();
     setupInputModeSwitch();
-    updateScheduleView();
 
     checkAndResetClassTasks();
     renderTimetable();
@@ -152,6 +147,9 @@ window.addEventListener('DOMContentLoaded', () => {
     renderTasks();
     setupColorPicker();
     setupAuthListeners();
+
+    // メイン画面のダッシュボード更新
+    updateDashboard();
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
@@ -166,6 +164,116 @@ window.addEventListener('online', async () => {
         if (messageArea) messageArea.textContent = '☁️ クラウドへ自動バックアップしました！';
     }, 1500);
 });
+
+// サイドバーのコントロール
+function setupSidebarEvents() {
+    openSidebarBtn.onclick = () => {
+        sidebar.classList.add('open');
+        sidebarOverlay.style.display = 'block';
+    };
+
+    closeSidebarBtn.onclick = closeSidebar;
+    sidebarOverlay.onclick = closeSidebar;
+
+    document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            
+            document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+            const targetSec = document.getElementById(targetId);
+            if (targetSec) targetSec.classList.add('active');
+
+            if (targetId === 'viewHome') updateDashboard();
+            if (targetId === 'viewSchedule') updateScheduleView();
+
+            closeSidebar();
+        });
+    });
+}
+
+function closeSidebar() {
+    sidebar.classList.remove('open');
+    sidebarOverlay.style.display = 'none';
+}
+
+// 🏠 メイン画面 (ダッシュボード) の自動読み込み＆可視化
+function updateDashboard() {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentMin = now.getHours() * 60 + now.getMinutes();
+
+    // 1. 本日の予定（現在の予定 ＆ 次の予定）を取得
+    const todayItems = getScheduleForDate(todayStr).sort((a, b) => a.startMin - b.startMin);
+
+    let currentItem = null;
+    let nextItem = null;
+
+    for (let item of todayItems) {
+        if (currentMin >= item.startMin && currentMin < item.endMin) {
+            currentItem = item;
+        } else if (currentMin < item.startMin && !nextItem) {
+            nextItem = item;
+        }
+    }
+
+    if (currentItem) {
+        currentScheduleText.innerHTML = `<span style="color:#27ae60;">●</span> <strong>${currentItem.title}</strong> (${minToTimeStr(currentItem.startMin)} - ${minToTimeStr(currentItem.endMin)})`;
+    } else {
+        currentScheduleText.innerHTML = `<span style="color:#aaa;">現在進行中の予定はありません</span>`;
+    }
+
+    if (nextItem) {
+        nextScheduleText.innerHTML = `⏳ <strong>${nextItem.title}</strong> (${minToTimeStr(nextItem.startMin)} 〜)`;
+    } else {
+        nextScheduleText.innerHTML = `<span style="color:#aaa;">本日これ以降の予定はありません</span>`;
+    }
+
+    // 2. 今週期限のタスク抽出
+    renderDueThisWeekTasks();
+}
+
+function renderDueThisWeekTasks() {
+    dueThisWeekTaskList.innerHTML = '';
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+        dueThisWeekTaskList.innerHTML = '<li style="color:#aaa; border:none;">今週期限のタスクはありません</li>';
+        return;
+    }
+
+    const now = new Date();
+    const endOfWeek = new Date();
+    endOfWeek.setDate(now.getDate() + 7);
+
+    const dueTasks = tasks.filter(t => {
+        if (!t.dueDate || t.completed) return false;
+        const due = new Date(t.dueDate);
+        return due >= now && due <= endOfWeek;
+    });
+
+    if (dueTasks.length === 0) {
+        dueThisWeekTaskList.innerHTML = '<li style="color:#aaa; border:none;">今週期限のタスクはありません</li>';
+        return;
+    }
+
+    dueTasks.forEach(task => {
+        const li = document.createElement('li');
+        li.style.borderBottom = '1px solid #eae5db';
+        li.style.padding = '8px 0';
+
+        li.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                <div>
+                    <span class="due-tag">${formatDueDate(task.dueDate)}</span>
+                    <strong style="font-size:0.92rem; margin-left:6px;">${task.text}</strong>
+                </div>
+                <button class="btn-secondary" style="font-size:0.75rem; padding:2px 6px;" onclick="toggleTask(${task.id})">完了にする</button>
+            </div>
+        `;
+        dueThisWeekTaskList.appendChild(li);
+    });
+}
 
 // 30色カラーパレット初期生成
 function init30ColorPicker() {
@@ -188,7 +296,6 @@ function init30ColorPicker() {
     });
 }
 
-// 所要時間セレクトボックス（時間・分）の生成
 function initDurationSelectOptions() {
     schedDurationHours.innerHTML = '';
     for (let h = 0; h <= 23; h++) {
@@ -208,7 +315,6 @@ function initDurationSelectOptions() {
     }
 }
 
-// 入力モード（範囲指定 / 所要時間）切替設定
 function setupInputModeSwitch() {
     document.querySelectorAll('input[name="timeInputMode"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -223,7 +329,6 @@ function setupInputModeSwitch() {
     });
 }
 
-// 登録済み・履歴予定のプリセットボタン描画
 function renderPresetButtons() {
     presetScheduleButtons.innerHTML = '';
     if (!savedSchedulePresets || savedSchedulePresets.length === 0) {
@@ -238,11 +343,9 @@ function renderPresetButtons() {
         btn.textContent = `＋ ${preset.title}`;
 
         btn.onclick = () => {
-            // 予定名とカラーを自動セットしてフォームを開く
             schedTitleInput.value = preset.title;
             schedSelectedColor = preset.color;
 
-            // カラーパレットの選択状態を更新
             document.querySelectorAll('.color-circle-small').forEach(circle => {
                 if (circle.getAttribute('data-color') === preset.color) {
                     circle.classList.add('active');
@@ -260,37 +363,22 @@ function renderPresetButtons() {
     });
 }
 
-// 履歴プリセットへの追加・更新
 function addOrUpdateSchedulePreset(title, color) {
     if (!title) return;
     const existingIndex = savedSchedulePresets.findIndex(p => p.title === title);
 
     if (existingIndex >= 0) {
-        savedSchedulePresets[existingIndex].color = color; // カラー更新
+        savedSchedulePresets[existingIndex].color = color;
     } else {
-        savedSchedulePresets.unshift({ title, color }); // 先頭に追加
+        savedSchedulePresets.unshift({ title, color });
     }
 
-    // 最大15個まで保存
     if (savedSchedulePresets.length > 15) {
         savedSchedulePresets = savedSchedulePresets.slice(0, 15);
     }
 
     localStorage.setItem('mySchedulePresets', JSON.stringify(savedSchedulePresets));
     renderPresetButtons();
-}
-
-// ナビゲーションタブ切り替え
-tabScheduleBtn.addEventListener('click', () => { setActiveTab(tabScheduleBtn, viewSchedule); });
-tabTimetableBtn.addEventListener('click', () => { setActiveTab(tabTimetableBtn, viewTimetable); });
-tabTaskBtn.addEventListener('click', () => { setActiveTab(tabTaskBtn, viewTask); });
-
-function setActiveTab(btn, view) {
-    [tabScheduleBtn, tabTimetableBtn, tabTaskBtn].forEach(b => b.classList.remove('active'));
-    [viewSchedule, viewTimetable, viewTask].forEach(v => v.classList.remove('active'));
-    btn.classList.add('active');
-    view.classList.add('active');
-    if (messageArea) messageArea.textContent = '';
 }
 
 // スケジュール日付コントロール
@@ -321,7 +409,6 @@ toggleScheduleFormBtn.addEventListener('click', () => {
     toggleScheduleIcon.textContent = isHidden ? '▲' : '▼';
 });
 
-// 1日スケジュールのビュー更新
 function updateScheduleView() {
     const d = new Date(selectedSchedDate);
     const dayOfWeek = d.getDay();
@@ -401,18 +488,17 @@ function getClassSchedulesForDay(dayChar, dateStr) {
     return result;
 }
 
-// 24時間円グラフ描画（大型化＆各扇形への文字入れ対応）
+// 24時間円グラフ描画（文字色：黒 ＋ 白の細い縁取り）
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const width = scheduleCanvas.width;
     const height = scheduleCanvas.height;
     const centerX = width / 2;
     const centerY = height / 2;
-    const radius = 160; // グラフサイズを拡大
+    const radius = 160;
 
     ctx.clearRect(0, 0, width, height);
 
-    // ベースの円盤
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fillStyle = '#f0ece1';
@@ -422,7 +508,6 @@ function draw24HourChart(items) {
         const startAngle = (item.startMin / 1440) * Math.PI * 2 - Math.PI / 2;
         const endAngle = (item.endMin / 1440) * Math.PI * 2 - Math.PI / 2;
 
-        // 扇形描画
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
         ctx.arc(centerX, centerY, radius, startAngle, endAngle);
@@ -433,33 +518,35 @@ function draw24HourChart(items) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // 予定テキストを扇形内部に書き込む (15分以上 = 角度0.065rad以上)
+        // 黒字でのラベル描画 (15分以上の予定)
         const durationMin = item.endMin - item.startMin;
         if (durationMin >= 15) {
             const midAngle = (startAngle + endAngle) / 2;
-            const textRadius = radius * 0.7; // 文字の配置場所
+            const textRadius = radius * 0.7;
             const textX = centerX + Math.cos(midAngle) * textRadius;
             const textY = centerY + Math.sin(midAngle) * textRadius;
 
             ctx.save();
             ctx.font = 'bold 11px sans-serif';
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = 'rgba(0,0,0,0.6)';
-            ctx.shadowBlur = 3;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // 予定名をカットオフして描画
-            let labelText = item.title.replace(/^🏫\s*/, ''); // 🏫アイコンを省略して見やすく
+            let labelText = item.title.replace(/^🏫\s*/, '');
             if (labelText.length > 5 && durationMin < 60) {
                 labelText = labelText.substring(0, 4) + '..';
             }
+
+            // 白い縁取りを入れて黒文字を浮き立たせる
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.strokeText(labelText, textX, textY);
+
+            ctx.fillStyle = '#333333'; // 見やすい黒色
             ctx.fillText(labelText, textX, textY);
             ctx.restore();
         }
     });
 
-    // 24時間の目盛り線と数字
     for (let h = 0; h < 24; h += 3) {
         const angle = (h / 24) * Math.PI * 2 - Math.PI / 2;
         const lineX1 = centerX + Math.cos(angle) * (radius - 8);
@@ -483,7 +570,6 @@ function draw24HourChart(items) {
         ctx.fillText(`${h}`, textX, textY);
     }
 
-    // ドーナツ型の中心円
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius * 0.4, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
@@ -547,7 +633,6 @@ function timeStrToMin(str) {
     return h * 60 + m;
 }
 
-// 予定の保存処理（二種類の入力モード対応）
 saveSchedBtn.addEventListener('click', async () => {
     const title = schedTitleInput.value.trim();
     const isWeekly = schedRepeatType.value === 'weekly';
@@ -593,7 +678,6 @@ saveSchedBtn.addEventListener('click', async () => {
         isWeekly: isWeekly
     };
 
-    // 予定履歴（プリセット）へ登録・更新
     addOrUpdateSchedulePreset(title, schedSelectedColor);
 
     const d = new Date(selectedSchedDate);
@@ -620,10 +704,10 @@ saveSchedBtn.addEventListener('click', async () => {
     toggleScheduleIcon.textContent = '▼';
 
     updateScheduleView();
+    updateDashboard();
     if (messageArea) messageArea.textContent = '💾 予定を保存しました！';
 });
 
-// 予定削除時の単日/全体選択対応
 let targetItemToDelete = null;
 
 function deleteScheduleItem(item) {
@@ -675,11 +759,11 @@ async function executeDeleteSchedule(singleDayOnly) {
     localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
     await saveUserDataToCloud();
     updateScheduleView();
+    updateDashboard();
     targetItemToDelete = null;
     if (messageArea) messageArea.textContent = '🗑 予定を削除しました。';
 }
 
-// 時間割・タスク管理などの既存処理
 function checkAndResetClassTasks() {
     if (!Array.isArray(tasks)) return;
 
@@ -815,7 +899,8 @@ async function loadUserDataFromCloud(uid) {
             renderCategoryFilterTabs();
             updateCategorySelectOptions();
             renderTasks();
-            console.log("☁️ クラウドからデータを同期しました");
+            updateDashboard();
+            console.log("☁️️ クラウドからデータを同期しました");
         }
     } catch (error) {
         console.error("データ同期エラー:", error);
@@ -1049,6 +1134,7 @@ saveSubjectBtn.onclick = async () => {
     renderTimetable();
     updateSubjectSelectOptions();
     updateScheduleView();
+    updateDashboard();
     closeModal();
     if (messageArea) messageArea.textContent = '💾 科目を保存しました！';
 };
@@ -1061,6 +1147,7 @@ deleteSubjectBtn.onclick = async () => {
         renderTimetable();
         updateSubjectSelectOptions();
         updateScheduleView();
+        updateDashboard();
         closeModal();
         if (messageArea) messageArea.textContent = '🗑 コマを削除しました。';
     }
@@ -1200,6 +1287,7 @@ addTaskBtn.addEventListener('click', async () => {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    updateDashboard();
     toggleTaskForm(false);
 });
 
@@ -1303,6 +1391,7 @@ async function toggleTask(id) {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    updateDashboard();
 }
 
 async function deleteTask(id) {
@@ -1313,6 +1402,7 @@ async function deleteTask(id) {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    updateDashboard();
 }
 
 function formatDueDate(isoString) {

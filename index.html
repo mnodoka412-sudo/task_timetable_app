@@ -3,37 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>週時間割＆タスク・1日スケジュール管理</title>
+    <title>スマートライフ＆タスク管理</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
 
-    <div class="container">
-        <!-- Google 認証・ユーザー情報表示エリア -->
-        <div class="user-auth-area">
-            <button id="googleLoginBtn" class="btn-primary" style="width: 100%; margin-bottom: 12px;">🌐 Googleでログインして同期</button>
-            <div id="userInfo" style="display: none; text-align: center; margin-bottom: 12px; background: #faf8f5; padding: 8px; border-radius: 8px; border: 1px solid #e0dacf;">
-                <span id="userName" style="font-weight: bold; margin-right: 8px;"></span>
-                <button id="logoutBtn" class="btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">ログアウト</button>
-            </div>
-        </div>
+    <!-- サイドバー表示用オーバーレイ -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
 
-        <!-- 画面切り替え用ナビゲーションタブ -->
-        <div class="tab-navigation">
-            <button id="tabScheduleBtn" class="tab-btn active">🕐 1日スケジュール</button>
-            <button id="tabTimetableBtn" class="tab-btn">📅 時間割</button>
-            <button id="tabTaskBtn" class="tab-btn">📝 タスク管理</button>
+    <!-- スライドイン・サイドバー -->
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h2>📱 アプリメニュー</h2>
+            <span id="closeSidebarBtn" class="close-sidebar-btn">&times;</span>
         </div>
+        <nav class="sidebar-nav">
+            <button class="sidebar-nav-btn active" data-target="viewHome">🏠 メイン画面</button>
+            <button class="sidebar-nav-btn" data-target="viewSchedule">🕐 1日スケジュール</button>
+            <button class="sidebar-nav-btn" data-target="viewTimetable">📅 週時間割</button>
+            <button class="sidebar-nav-btn" data-target="viewTask">📝 タスク管理</button>
+        </nav>
+    </div>
+
+    <div class="container">
+        <!-- ヘッダーエリア (サイドバー起動ボタン ＋ Googleログイン) -->
+        <header class="app-header">
+            <button id="openSidebarBtn" class="hamburger-btn">☰ メニュー</button>
+            <div class="user-auth-area">
+                <button id="googleLoginBtn" class="btn-primary" style="font-size:0.8rem; padding:6px 10px;">🌐 ログイン</button>
+                <div id="userInfo" style="display: none; font-size:0.8rem;">
+                    <span id="userName" style="font-weight: bold; margin-right: 4px;"></span>
+                    <button id="logoutBtn" class="btn-secondary" style="padding: 2px 6px; font-size: 0.75rem;">ログアウト</button>
+                </div>
+            </div>
+        </header>
 
         <!-- メッセージ表示エリア -->
         <div id="messageArea" class="message-area"></div>
 
+        <!-- ==================== 0. メイン画面（ダッシュボード） ==================== -->
+        <div id="viewHome" class="view-section active">
+            <h1>🏠 ダッシュボード</h1>
+
+            <!-- 1. 現在の予定 ＆ 次の予定 -->
+            <div class="dashboard-card highlight-card">
+                <h2>🕒 現在 ＆ 次の予定</h2>
+                
+                <div class="schedule-status-box">
+                    <div class="status-item">
+                        <span class="status-label">現在の予定</span>
+                        <div id="currentScheduleText" class="status-value">読み込み中...</div>
+                    </div>
+                    <hr class="status-divider">
+                    <div class="status-item">
+                        <span class="status-label">次の予定</span>
+                        <div id="nextScheduleText" class="status-value">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 今週期限のタスク -->
+            <div class="dashboard-card">
+                <h2>⏰ 今週期限のタスク</h2>
+                <ul id="dueThisWeekTaskList" class="notebook-task-list">
+                    <li style="color:#aaa; border:none;">今週期限のタスクはありません</li>
+                </ul>
+            </div>
+
+            <!-- 3. Googleカレンダー連携予定エリア -->
+            <div class="dashboard-card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2 style="margin:0;">📅 Google カレンダーの予定</h2>
+                    <span class="badge-tag" style="background:#e8f4f8; color:#2980b9;">連携準備完了</span>
+                </div>
+                <p style="font-size:0.8rem; color:#777; margin-top:6px;">Google アカウントの連携を有効にすると、ここに外部カレンダーのスケジュールが自動表示されます。</p>
+                <ul id="googleCalendarList" class="memo-list" style="margin-top:8px;">
+                    <li style="color:#aaa; border:none; background:none;">同期されたGoogleカレンダーの予定はありません</li>
+                </ul>
+            </div>
+        </div>
+
         <!-- ==================== 1. 1日スケジュール画面 ==================== -->
-        <div id="viewSchedule" class="view-section active">
+        <div id="viewSchedule" class="view-section">
             <h1>1日のスケジュール</h1>
             
-            <!-- 日付切り替えコントロール -->
             <div class="date-selector-container">
                 <button id="prevDateBtn" class="btn-secondary">◀ 前日</button>
                 <input type="date" id="scheduleDateInput">
@@ -41,12 +95,10 @@
             </div>
             <p id="scheduleDayOfWeekText" class="day-of-week-text"></p>
 
-            <!-- 24時間円グラフ表示エリア（大型化） -->
             <div class="chart-container">
                 <canvas id="scheduleCanvas" width="380" height="380"></canvas>
             </div>
 
-            <!-- 履歴からワンタップ追加エリア -->
             <div class="preset-schedule-section">
                 <div class="setting-label-text">⚡ よく使う・登録済みの予定から追加</div>
                 <div id="presetScheduleButtons" class="preset-buttons-container">
@@ -54,7 +106,6 @@
                 </div>
             </div>
 
-            <!-- 予定の追加フォーム (トグル) -->
             <div class="task-form-wrapper" style="margin-top: 16px;">
                 <button id="toggleScheduleFormBtn" class="task-form-toggle-btn">
                     <span id="toggleScheduleText">➕ 予定を追加する</span>
@@ -67,7 +118,6 @@
                         <input type="text" id="schedTitleInput" placeholder="予定名 (例: 睡眠, 仕事, 読書...)">
                     </div>
 
-                    <!-- 入力モード切替（時間指定 vs 所要時間） -->
                     <div class="setting-card">
                         <div class="setting-label-text">⏱️ 時間設定モード</div>
                         <div class="input-mode-selector">
@@ -75,13 +125,11 @@
                             <label><input type="radio" name="timeInputMode" value="duration"> 開始時刻 ＋ 所要時間</label>
                         </div>
 
-                        <!-- モード1: 開始時間〜終了時間 -->
                         <div id="modeRangeArea" class="time-range-group" style="margin-top: 10px;">
                             <label>開始: <input type="time" id="schedStartTime"></label>
                             <label>終了: <input type="time" id="schedEndTime"></label>
                         </div>
 
-                        <!-- モード2: 開始時間 ＋ 所要時間 -->
                         <div id="modeDurationArea" class="time-range-group" style="display: none; margin-top: 10px; flex-wrap: wrap;">
                             <label>開始: <input type="time" id="schedStartTimeDur"></label>
                             <label>所要時間: 
@@ -93,9 +141,7 @@
 
                     <div class="setting-card">
                         <div class="setting-label-text">🎨 テーマカラー (全30色)</div>
-                        <div class="color-picker-grid" id="schedColorPicker">
-                            <!-- JSで30色を自動生成 -->
-                        </div>
+                        <div class="color-picker-grid" id="schedColorPicker"></div>
                     </div>
 
                     <div class="setting-card">
@@ -110,7 +156,6 @@
                 </div>
             </div>
 
-            <!-- 本日の予定一覧 -->
             <div class="section">
                 <h2>📋 予定一覧</h2>
                 <ul id="scheduleList" class="memo-list"></ul>
