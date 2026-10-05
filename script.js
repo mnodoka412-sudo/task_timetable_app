@@ -34,6 +34,7 @@ let savedSchedulePresets = JSON.parse(localStorage.getItem('mySchedulePresets'))
 let activeCategoryFilter = "すべて";
 let editingTaskId = null;
 let editingMemoTaskId = null;
+let editingSchedItemId = null; // スケジュール編集対象ID
 let activeCellKey = null;
 let selectedColor = "#F38181";
 let schedSelectedColor = pastel30Colors[0];
@@ -63,6 +64,7 @@ const toggleScheduleFormBtn = document.getElementById('toggleScheduleFormBtn');
 const scheduleFormContent = document.getElementById('scheduleFormContent');
 const toggleScheduleText = document.getElementById('toggleScheduleText');
 const toggleScheduleIcon = document.getElementById('toggleScheduleIcon');
+const schedFormHeading = document.getElementById('schedFormHeading');
 const schedTitleInput = document.getElementById('schedTitleInput');
 const schedStartTime = document.getElementById('schedStartTime');
 const schedEndTime = document.getElementById('schedEndTime');
@@ -73,6 +75,7 @@ const modeRangeArea = document.getElementById('modeRangeArea');
 const modeDurationArea = document.getElementById('modeDurationArea');
 const schedRepeatType = document.getElementById('schedRepeatType');
 const saveSchedBtn = document.getElementById('saveSchedBtn');
+const cancelSchedEditBtn = document.getElementById('cancelSchedEditBtn');
 const scheduleList = document.getElementById('scheduleList');
 const repeatOptionModalOverlay = document.getElementById('repeatOptionModalOverlay');
 const applySingleDayBtn = document.getElementById('applySingleDayBtn');
@@ -148,7 +151,9 @@ window.addEventListener('DOMContentLoaded', () => {
     setupColorPicker();
     setupAuthListeners();
 
-    // メイン画面のダッシュボード更新
+    // キャンバス上のクリック/タップイベント登録
+    scheduleCanvas.addEventListener('click', handleCanvasClick);
+
     updateDashboard();
 
     if ('serviceWorker' in navigator) {
@@ -165,7 +170,7 @@ window.addEventListener('online', async () => {
     }, 1500);
 });
 
-// サイドバーのコントロール
+// サイドバーコントロール
 function setupSidebarEvents() {
     openSidebarBtn.onclick = () => {
         sidebar.classList.add('open');
@@ -199,13 +204,12 @@ function closeSidebar() {
     sidebarOverlay.style.display = 'none';
 }
 
-// 🏠 メイン画面 (ダッシュボード) の自動読み込み＆可視化
+// ダッシュボード更新
 function updateDashboard() {
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const currentMin = now.getHours() * 60 + now.getMinutes();
 
-    // 1. 本日の予定（現在の予定 ＆ 次の予定）を取得
     const todayItems = getScheduleForDate(todayStr).sort((a, b) => a.startMin - b.startMin);
 
     let currentItem = null;
@@ -231,7 +235,6 @@ function updateDashboard() {
         nextScheduleText.innerHTML = `<span style="color:#aaa;">本日これ以降の予定はありません</span>`;
     }
 
-    // 2. 今週期限のタスク抽出
     renderDueThisWeekTasks();
 }
 
@@ -354,8 +357,7 @@ function renderPresetButtons() {
                 }
             });
 
-            scheduleFormContent.style.display = 'block';
-            toggleScheduleIcon.textContent = '▲';
+            openSchedForm();
             schedStartTime.focus();
         };
 
@@ -381,7 +383,6 @@ function addOrUpdateSchedulePreset(title, color) {
     renderPresetButtons();
 }
 
-// スケジュール日付コントロール
 scheduleDateInput.addEventListener('change', (e) => {
     selectedSchedDate = e.target.value;
     updateScheduleView();
@@ -404,10 +405,38 @@ nextDateBtn.addEventListener('click', () => {
 });
 
 toggleScheduleFormBtn.addEventListener('click', () => {
-    const isHidden = scheduleFormContent.style.display === 'none';
-    scheduleFormContent.style.display = isHidden ? 'block' : 'none';
-    toggleScheduleIcon.textContent = isHidden ? '▲' : '▼';
+    if (scheduleFormContent.style.display === 'none') {
+        openSchedForm();
+    } else {
+        closeSchedForm();
+    }
 });
+
+function openSchedForm() {
+    scheduleFormContent.style.display = 'block';
+    toggleScheduleIcon.textContent = '▲';
+}
+
+function closeSchedForm() {
+    scheduleFormContent.style.display = 'none';
+    toggleScheduleIcon.textContent = '▼';
+    resetSchedForm();
+}
+
+function resetSchedForm() {
+    editingSchedItemId = null;
+    schedFormHeading.textContent = '➕ 予定の登録';
+    toggleScheduleText.textContent = '➕ 予定を追加する';
+    saveSchedBtn.textContent = '💾 予定を保存';
+    cancelSchedEditBtn.style.display = 'none';
+
+    schedTitleInput.value = '';
+    schedStartTime.value = '';
+    schedEndTime.value = '';
+    schedStartTimeDur.value = '';
+}
+
+cancelSchedEditBtn.onclick = closeSchedForm;
 
 function updateScheduleView() {
     const d = new Date(selectedSchedDate);
@@ -488,7 +517,74 @@ function getClassSchedulesForDay(dayChar, dateStr) {
     return result;
 }
 
-// 24時間円グラフ描画（文字色：黒 ＋ 白の細い縁取り）
+// キャンバスクリック時の処理（予定選択＆空欄タップ追加）
+function handleCanvasClick(e) {
+    const rect = scheduleCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left - (scheduleCanvas.width / 2);
+    const y = e.clientY - rect.top - (scheduleCanvas.height / 2);
+
+    const radius = Math.sqrt(x * x + y * y);
+    const chartRadius = 160;
+
+    // ドーナツリング部分のタップか判定
+    if (radius < chartRadius * 0.4 || radius > chartRadius) return;
+
+    // 角度を分（0〜1440分）に変換
+    let angle = Math.atan2(y, x) + Math.PI / 2;
+    if (angle < 0) angle += Math.PI * 2;
+    const clickedMin = Math.floor((angle / (Math.PI * 2)) * 1440);
+
+    const items = getScheduleForDate(selectedSchedDate);
+    const clickedItem = items.find(item => clickedMin >= item.startMin && clickedMin < item.endMin);
+
+    if (clickedItem) {
+        // タップした予定の編集フォームを開く
+        startEditingSchedItem(clickedItem);
+    } else {
+        // 空欄部分をタップ: 選択された時間で新規追加フォームを開く
+        let nextStart = 1440;
+        items.forEach(item => {
+            if (item.startMin > clickedMin && item.startMin < nextStart) {
+                nextStart = item.startMin;
+            }
+        });
+
+        resetSchedForm();
+        schedStartTime.value = minToTimeStr(clickedMin);
+        schedEndTime.value = minToTimeStr(nextStart);
+        schedStartTimeDur.value = minToTimeStr(clickedMin);
+
+        openSchedForm();
+        schedTitleInput.focus();
+    }
+}
+
+function startEditingSchedItem(item) {
+    editingSchedItemId = item.id;
+    schedFormHeading.textContent = '✏️ 予定の編集';
+    toggleScheduleText.textContent = '✏️ 予定を編集（開いています）';
+    saveSchedBtn.textContent = '💾 変更を保存';
+    cancelSchedEditBtn.style.display = 'block';
+
+    schedTitleInput.value = item.title.replace(/^🏫\s*/, '');
+    schedStartTime.value = minToTimeStr(item.startMin);
+    schedEndTime.value = minToTimeStr(item.endMin);
+    schedStartTimeDur.value = minToTimeStr(item.startMin);
+    schedSelectedColor = item.color || pastel30Colors[0];
+
+    document.querySelectorAll('.color-circle-small').forEach(circle => {
+        if (circle.getAttribute('data-color') === schedSelectedColor) {
+            circle.classList.add('active');
+        } else {
+            circle.classList.remove('active');
+        }
+    });
+
+    openSchedForm();
+    window.scrollTo({ top: scheduleFormContent.offsetTop - 60, behavior: 'smooth' });
+}
+
+// 24時間円グラフ描画（文字重なり防止＆最適化）
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const width = scheduleCanvas.width;
@@ -518,30 +614,34 @@ function draw24HourChart(items) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // 黒字でのラベル描画 (15分以上の予定)
+        // 文字の重なり防止調整 (12分以上 = 描画対象)
         const durationMin = item.endMin - item.startMin;
-        if (durationMin >= 15) {
+        if (durationMin >= 12) {
             const midAngle = (startAngle + endAngle) / 2;
             const textRadius = radius * 0.7;
             const textX = centerX + Math.cos(midAngle) * textRadius;
             const textY = centerY + Math.sin(midAngle) * textRadius;
 
             ctx.save();
-            ctx.font = 'bold 11px sans-serif';
+            ctx.font = 'bold 10px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
             let labelText = item.title.replace(/^🏫\s*/, '');
-            if (labelText.length > 5 && durationMin < 60) {
-                labelText = labelText.substring(0, 4) + '..';
+
+            // 短い時間枠（45分未満）での文字省略
+            if (durationMin < 45) {
+                if (labelText.includes('休憩')) labelText = '☕';
+                else if (labelText.length > 3) labelText = labelText.substring(0, 2) + '..';
+            } else if (labelText.length > 6 && durationMin < 90) {
+                labelText = labelText.substring(0, 5) + '..';
             }
 
-            // 白い縁取りを入れて黒文字を浮き立たせる
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 3;
             ctx.strokeText(labelText, textX, textY);
 
-            ctx.fillStyle = '#333333'; // 見やすい黒色
+            ctx.fillStyle = '#2c3e50';
             ctx.fillText(labelText, textX, textY);
             ctx.restore();
         }
@@ -611,12 +711,24 @@ function renderScheduleList(items) {
             </div>
         `;
 
+        const actionDiv = document.createElement('div');
+        actionDiv.style.display = 'flex';
+        actionDiv.style.gap = '4px';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'action-btn edit-btn';
+        editBtn.textContent = '✏️ 編集';
+        editBtn.onclick = () => startEditingSchedItem(item);
+
         const delBtn = document.createElement('button');
-        delBtn.className = 'memo-del-btn';
+        delBtn.className = 'action-btn delete-btn';
         delBtn.textContent = '✖ 削除';
         delBtn.onclick = () => deleteScheduleItem(item);
 
-        li.appendChild(delBtn);
+        actionDiv.appendChild(editBtn);
+        actionDiv.appendChild(delBtn);
+
+        li.appendChild(actionDiv);
         scheduleList.appendChild(li);
     });
 }
@@ -670,7 +782,7 @@ saveSchedBtn.addEventListener('click', async () => {
     }
 
     const newItem = {
-        id: Date.now(),
+        id: editingSchedItemId || Date.now(),
         title: title,
         startMin: startMin,
         endMin: endMin,
@@ -683,26 +795,31 @@ saveSchedBtn.addEventListener('click', async () => {
     const d = new Date(selectedSchedDate);
     const weeklyKey = `weekly_${d.getDay()}`;
 
-    if (isWeekly) {
-        if (!dailySchedules[weeklyKey]) dailySchedules[weeklyKey] = [];
-        dailySchedules[weeklyKey].push(newItem);
-    } else {
-        if (!dailySchedules[selectedSchedDate]) {
-            dailySchedules[selectedSchedDate] = [...getScheduleForDate(selectedSchedDate)];
+    if (editingSchedItemId) {
+        // 上書き編集
+        if (dailySchedules[selectedSchedDate]) {
+            dailySchedules[selectedSchedDate] = dailySchedules[selectedSchedDate].map(i => i.id === editingSchedItemId ? newItem : i);
         }
-        dailySchedules[selectedSchedDate].push(newItem);
+        if (dailySchedules[weeklyKey]) {
+            dailySchedules[weeklyKey] = dailySchedules[weeklyKey].map(i => i.id === editingSchedItemId ? newItem : i);
+        }
+    } else {
+        // 新規追加
+        if (isWeekly) {
+            if (!dailySchedules[weeklyKey]) dailySchedules[weeklyKey] = [];
+            dailySchedules[weeklyKey].push(newItem);
+        } else {
+            if (!dailySchedules[selectedSchedDate]) {
+                dailySchedules[selectedSchedDate] = [...getScheduleForDate(selectedSchedDate)];
+            }
+            dailySchedules[selectedSchedDate].push(newItem);
+        }
     }
 
     localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
     await saveUserDataToCloud();
 
-    schedTitleInput.value = '';
-    schedStartTime.value = '';
-    schedEndTime.value = '';
-    schedStartTimeDur.value = '';
-    scheduleFormContent.style.display = 'none';
-    toggleScheduleIcon.textContent = '▼';
-
+    closeSchedForm();
     updateScheduleView();
     updateDashboard();
     if (messageArea) messageArea.textContent = '💾 予定を保存しました！';
@@ -900,7 +1017,7 @@ async function loadUserDataFromCloud(uid) {
             updateCategorySelectOptions();
             renderTasks();
             updateDashboard();
-            console.log("☁️️ クラウドからデータを同期しました");
+            console.log("☁️ クラウドからデータを同期しました");
         }
     } catch (error) {
         console.error("データ同期エラー:", error);

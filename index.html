@@ -27,7 +27,7 @@
     </div>
 
     <div class="container">
-        <!-- ヘッダーエリア (サイドバー起動ボタン ＋ Googleログイン) -->
+        <!-- ヘッダーエリア -->
         <header class="app-header">
             <button id="openSidebarBtn" class="hamburger-btn">☰ メニュー</button>
             <div class="user-auth-area">
@@ -75,7 +75,7 @@
             <div class="dashboard-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h2 style="margin:0;">📅 Google カレンダーの予定</h2>
-                    <span class="badge-tag" style="background:#e8f4f8; color:#2980b9;">連携準備完了</span>
+                    <span class="badge-tag" style="background:#e8f8f0; color:#27ae60;">連携準備完了</span>
                 </div>
                 <p style="font-size:0.8rem; color:#777; margin-top:6px;">Google アカウントの連携を有効にすると、ここに外部カレンダーのスケジュールが自動表示されます。</p>
                 <ul id="googleCalendarList" class="memo-list" style="margin-top:8px;">
@@ -95,9 +95,11 @@
             </div>
             <p id="scheduleDayOfWeekText" class="day-of-week-text"></p>
 
+            <!-- 円グラフ表示エリア（タップ操作可能） -->
             <div class="chart-container">
-                <canvas id="scheduleCanvas" width="380" height="380"></canvas>
+                <canvas id="scheduleCanvas" width="380" height="380" style="cursor: pointer;"></canvas>
             </div>
+            <p style="text-align: center; font-size: 0.78rem; color: #888; margin-top: -6px;">💡 グラフの扇形タップで編集、空欄タップでその時間に予定を追加できます</p>
 
             <div class="preset-schedule-section">
                 <div class="setting-label-text">⚡ よく使う・登録済みの予定から追加</div>
@@ -106,6 +108,7 @@
                 </div>
             </div>
 
+            <!-- 予定追加/編集フォーム（アコーディオン） -->
             <div class="task-form-wrapper" style="margin-top: 16px;">
                 <button id="toggleScheduleFormBtn" class="task-form-toggle-btn">
                     <span id="toggleScheduleText">➕ 予定を追加する</span>
@@ -113,7 +116,7 @@
                 </button>
 
                 <div id="scheduleFormContent" class="task-form-content" style="display: none;">
-                    <h2 style="margin-top:0;">➕ 予定の登録</h2>
+                    <h2 id="schedFormHeading" style="margin-top:0;">➕ 予定の登録</h2>
                     <div class="input-group">
                         <input type="text" id="schedTitleInput" placeholder="予定名 (例: 睡眠, 仕事, 読書...)">
                     </div>
@@ -153,6 +156,7 @@
                     </div>
 
                     <button id="saveSchedBtn" class="btn-primary" style="width:100%; margin-top:10px;">💾 予定を保存</button>
+                    <button id="cancelSchedEditBtn" class="btn-secondary" style="display: none; width: 100%; margin-top: 6px;">キャンセル</button>
                 </div>
             </div>
 
