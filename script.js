@@ -14,6 +14,7 @@ let timetableData = JSON.parse(localStorage.getItem('myTimetable')) || {};
 let tasks = JSON.parse(localStorage.getItem('myTasks')) || [];
 let customCategories = JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"];
 let activeCategoryFilter = "すべて";
+let editingTaskId = null;
 
 // 選択中のコマ保持・選択カラーの初期値
 let activeCellKey = null;
@@ -59,7 +60,15 @@ const newListNameInput = document.getElementById('newListNameInput');
 const addNewListBtn = document.getElementById('addNewListBtn');
 const customCategoryList = document.getElementById('customCategoryList');
 
-// タスク要素
+// タスク・トグル要素
+const toggleTaskFormBtn = document.getElementById('toggleTaskFormBtn');
+const taskFormContent = document.getElementById('taskFormContent');
+const toggleFormIcon = document.getElementById('toggleFormIcon');
+const toggleFormText = document.getElementById('toggleFormText');
+const addTaskFromBottomBtn = document.getElementById('addTaskFromBottomBtn');
+
+// タスクフォーム要素
+const taskFormHeading = document.getElementById('taskFormHeading');
 const taskInput = document.getElementById('taskInput');
 const taskCategorySelect = document.getElementById('taskCategorySelect');
 const subjectSelect = document.getElementById('subjectSelect');
@@ -70,6 +79,7 @@ const repeatTypeSelect = document.getElementById('repeatTypeSelect');
 const repeatSubArea = document.getElementById('repeatSubArea');
 const repeatUntilInput = document.getElementById('repeatUntilInput');
 const addTaskBtn = document.getElementById('addTaskBtn');
+const cancelTaskEditBtn = document.getElementById('cancelTaskEditBtn');
 const messageArea = document.getElementById('messageArea');
 const taskList = document.getElementById('taskList');
 const listTabContainer = document.getElementById('listTabContainer');
@@ -88,6 +98,35 @@ window.addEventListener('DOMContentLoaded', () => {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
     }
+});
+
+// タスクフォーム開閉（アコーディオン）処理
+toggleTaskFormBtn.addEventListener('click', () => {
+    toggleTaskForm();
+});
+
+function toggleTaskForm(openState = null) {
+    const isCurrentlyHidden = taskFormContent.style.display === 'none';
+    const shouldOpen = openState !== null ? openState : isCurrentlyHidden;
+
+    if (shouldOpen) {
+        taskFormContent.style.display = 'block';
+        toggleFormIcon.textContent = '▲';
+    } else {
+        taskFormContent.style.display = 'none';
+        toggleFormIcon.textContent = '▼';
+    }
+}
+
+// リスト最下部の新規追加ボタン
+addTaskFromBottomBtn.addEventListener('click', () => {
+    resetTaskForm();
+    if (activeCategoryFilter !== 'すべて') {
+        taskCategorySelect.value = activeCategoryFilter;
+    }
+    toggleTaskForm(true);
+    taskInput.focus();
+    window.scrollTo({ top: taskFormContent.offsetTop - 60, behavior: 'smooth' });
 });
 
 // 毎授業用タスクの自動復活判定
@@ -303,7 +342,7 @@ manageListBtn.onclick = () => {
     listManageModalOverlay.style.display = 'flex';
 };
 
-// リスト（カテゴリ）タブの生成・レンダリング
+// リスト（カテゴリ）タブのレンダリング
 function renderCategoryFilterTabs() {
     listTabContainer.innerHTML = '';
     const allTabList = ["すべて", ...customCategories];
@@ -319,9 +358,15 @@ function renderCategoryFilterTabs() {
         };
         listTabContainer.appendChild(chip);
     });
+
+    // 下部ボタンテキストもカテゴリに連動
+    if (activeCategoryFilter === 'すべて') {
+        addTaskFromBottomBtn.textContent = '➕ タスクを新規追加';
+    } else {
+        addTaskFromBottomBtn.textContent = `➕ 「${activeCategoryFilter}」にタスクを追加`;
+    }
 }
 
-// ドロップダウン用リスト更新
 function updateCategorySelectOptions() {
     taskCategorySelect.innerHTML = '';
     customCategories.forEach(cat => {
@@ -332,7 +377,6 @@ function updateCategorySelectOptions() {
     });
 }
 
-// 管理画面内のリスト生成
 function renderCustomCategoryManageList() {
     customCategoryList.innerHTML = '';
     customCategories.forEach((cat, index) => {
@@ -361,7 +405,6 @@ function renderCustomCategoryManageList() {
     });
 }
 
-// 新規リスト追加
 addNewListBtn.onclick = async () => {
     const newCat = newListNameInput.value.trim();
     if (!newCat) return;
@@ -516,7 +559,7 @@ deleteSubjectBtn.onclick = async () => {
         renderTimetable();
         updateSubjectSelectOptions();
         closeModal();
-        messageArea.textContent = '🗑️️ コマを削除しました。';
+        messageArea.textContent = '🗑 コマを削除しました。';
     }
 };
 
@@ -593,7 +636,7 @@ function updateSubjectSelectOptions() {
     });
 }
 
-// タスク追加
+// タスク追加 / 編集のコントロール
 hasDueCheckbox.addEventListener('change', (e) => {
     dueDateInputArea.style.display = e.target.checked ? 'block' : 'none';
     if (!e.target.checked) dueDateTimeInput.value = '';
@@ -603,6 +646,7 @@ repeatTypeSelect.addEventListener('change', (e) => {
     repeatSubArea.style.display = e.target.value === 'none' ? 'none' : 'block';
 });
 
+// タスク追加・更新処理
 addTaskBtn.addEventListener('click', async () => {
     const text = taskInput.value.trim();
     const selectedCategory = taskCategorySelect.value || "未分類";
@@ -638,20 +682,55 @@ addTaskBtn.addEventListener('click', async () => {
 
     if (!Array.isArray(tasks)) tasks = [];
 
-    tasks.push({
-        id: Date.now(),
-        text: text,
-        category: selectedCategory,
-        subject: selectedSubject,
-        completed: false,
-        dueDate: dueDateTime,
-        resetDate: null,
-        repeat: { type: repeatType, days: repeatDays, until: repeatUntil }
-    });
+    if (editingTaskId) {
+        tasks = tasks.map(t => {
+            if (t.id === editingTaskId) {
+                return {
+                    ...t,
+                    text: text,
+                    category: selectedCategory,
+                    subject: selectedSubject,
+                    dueDate: dueDateTime,
+                    repeat: { type: repeatType, days: repeatDays, until: repeatUntil }
+                };
+            }
+            return t;
+        });
+        messageArea.textContent = '💾 タスクを更新しました！';
+        resetTaskForm();
+    } else {
+        tasks.push({
+            id: Date.now(),
+            text: text,
+            category: selectedCategory,
+            subject: selectedSubject,
+            completed: false,
+            dueDate: dueDateTime,
+            resetDate: null,
+            note: '',
+            repeat: { type: repeatType, days: repeatDays, until: repeatUntil }
+        });
+        messageArea.textContent = '💾 タスクを追加しました！';
+        resetTaskForm();
+    }
 
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    toggleTaskForm(false); // 追加完了後にフォームを閉じる
+});
+
+cancelTaskEditBtn.addEventListener('click', () => {
+    resetTaskForm();
+    toggleTaskForm(false);
+});
+
+function resetTaskForm() {
+    editingTaskId = null;
+    taskFormHeading.textContent = '➕ タスクの追加';
+    toggleFormText.textContent = '➕ 新しいタスクを追加';
+    addTaskBtn.textContent = '💾 タスク追加';
+    cancelTaskEditBtn.style.display = 'none';
 
     taskInput.value = '';
     hasDueCheckbox.checked = false;
@@ -661,9 +740,65 @@ addTaskBtn.addEventListener('click', async () => {
     repeatSubArea.style.display = 'none';
     document.querySelectorAll('.repeat-day-cb').forEach(cb => cb.checked = false);
     repeatUntilInput.value = '';
+}
 
-    messageArea.textContent = '💾 タスクを追加しました！';
-});
+function startEditingTask(id) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    editingTaskId = id;
+    taskFormHeading.textContent = '✏️ タスクの編集';
+    toggleFormText.textContent = '✏️ タスクを編集（開いています）';
+    addTaskBtn.textContent = '💾 変更を保存';
+    cancelTaskEditBtn.style.display = 'block';
+
+    taskInput.value = task.text;
+    taskCategorySelect.value = task.category || "未分類";
+    subjectSelect.value = task.subject || "";
+
+    if (task.dueDate) {
+        hasDueCheckbox.checked = true;
+        dueDateInputArea.style.display = 'block';
+        dueDateTimeInput.value = task.dueDate;
+    } else {
+        hasDueCheckbox.checked = false;
+        dueDateInputArea.style.display = 'none';
+        dueDateTimeInput.value = '';
+    }
+
+    if (task.repeat && task.repeat.type !== 'none') {
+        repeatTypeSelect.value = task.repeat.type;
+        repeatSubArea.style.display = 'block';
+        document.querySelectorAll('.repeat-day-cb').forEach(cb => {
+            cb.checked = task.repeat.days.includes(cb.value);
+        });
+        repeatUntilInput.value = task.repeat.until || '';
+    } else {
+        repeatTypeSelect.value = 'none';
+        repeatSubArea.style.display = 'none';
+        document.querySelectorAll('.repeat-day-cb').forEach(cb => cb.checked = false);
+        repeatUntilInput.value = '';
+    }
+
+    toggleTaskForm(true);
+    window.scrollTo({ top: viewTask.offsetTop, behavior: 'smooth' });
+}
+
+// タスク個別メモの保存 (改行テキスト対応)
+async function saveTaskNote(id, noteText) {
+    if (!Array.isArray(tasks)) return;
+
+    tasks = tasks.map(t => {
+        if (t.id === id) {
+            return { ...t, note: noteText.trim() };
+        }
+        return t;
+    });
+
+    localStorage.setItem('myTasks', JSON.stringify(tasks));
+    await saveUserDataToCloud();
+    renderTasks();
+}
 
 async function toggleTask(id) {
     if (!Array.isArray(tasks)) return;
@@ -696,6 +831,8 @@ async function toggleTask(id) {
 async function deleteTask(id) {
     if (!Array.isArray(tasks)) return;
     tasks = tasks.filter(task => task.id !== id);
+    if (editingTaskId === id) resetTaskForm();
+
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
@@ -728,7 +865,6 @@ function renderTasks() {
         return;
     }
 
-    // カテゴリフィルター適用
     const filteredTasks = tasks.filter(task => {
         if (activeCategoryFilter === 'すべて') return true;
         return (task.category || '未分類') === activeCategoryFilter;
@@ -741,6 +877,10 @@ function renderTasks() {
 
     filteredTasks.forEach(task => {
         const li = document.createElement('li');
+
+        const headerRow = document.createElement('div');
+        headerRow.className = 'task-header-row';
+
         const leftDiv = document.createElement('div');
         leftDiv.className = 'task-left';
 
@@ -754,7 +894,6 @@ function renderTasks() {
         const tagsDiv = document.createElement('div');
         tagsDiv.className = 'task-tags';
 
-        // カテゴリ（リスト）タグ
         const categoryTag = document.createElement('span');
         categoryTag.className = 'category-tag';
         categoryTag.textContent = task.category || '未分類';
@@ -791,13 +930,54 @@ function renderTasks() {
         leftDiv.appendChild(checkbox);
         leftDiv.appendChild(infoDiv);
 
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'task-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'action-btn edit-btn';
+        editBtn.textContent = '✏️ 編集';
+        editBtn.onclick = () => startEditingTask(task.id);
+
         const delBtn = document.createElement('button');
-        delBtn.className = 'delete-btn';
+        delBtn.className = 'action-btn delete-btn';
         delBtn.textContent = '✖ 削除';
         delBtn.onclick = () => deleteTask(task.id);
 
-        li.appendChild(leftDiv);
-        li.appendChild(delBtn);
+        actionsDiv.appendChild(editBtn);
+        actionsDiv.appendChild(delBtn);
+
+        headerRow.appendChild(leftDiv);
+        headerRow.appendChild(actionsDiv);
+
+        // 改行対応メモ入力・表示領域
+        const memoArea = document.createElement('div');
+        memoArea.className = 'task-memo-area';
+
+        if (task.note) {
+            const noteDisplay = document.createElement('div');
+            noteDisplay.className = 'task-memo-text';
+            noteDisplay.textContent = task.note;
+            memoArea.appendChild(noteDisplay);
+        }
+
+        const inputGroup = document.createElement('div');
+        inputGroup.className = 'task-memo-input-group';
+
+        const noteTextarea = document.createElement('textarea');
+        noteTextarea.placeholder = 'メモを入力・更新 (改行もできます)...';
+        noteTextarea.value = task.note || '';
+
+        const noteSaveBtn = document.createElement('button');
+        noteSaveBtn.className = 'btn-primary';
+        noteSaveBtn.textContent = 'メモ保存';
+        noteSaveBtn.onclick = () => saveTaskNote(task.id, noteTextarea.value);
+
+        inputGroup.appendChild(noteTextarea);
+        inputGroup.appendChild(noteSaveBtn);
+        memoArea.appendChild(inputGroup);
+
+        li.appendChild(headerRow);
+        li.appendChild(memoArea);
         taskList.appendChild(li);
     });
 }

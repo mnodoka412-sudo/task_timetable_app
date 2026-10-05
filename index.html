@@ -64,63 +64,78 @@
                 <button id="manageListBtn" class="btn-secondary list-manage-btn">⚙️ リスト（分類）の作成・管理</button>
             </div>
 
-            <div class="section">
-                <h2>➕ タスクの追加</h2>
-                <div class="input-group">
-                    <input type="text" id="taskInput" placeholder="やることを入力...">
-                </div>
+            <!-- タスク追加フォーム（アコーディオン/トグル形式） -->
+            <div class="task-form-wrapper">
+                <button id="toggleTaskFormBtn" class="task-form-toggle-btn">
+                    <span id="toggleFormText">➕ 新しいタスクを追加</span>
+                    <span id="toggleFormIcon">▼</span>
+                </button>
 
-                <div class="input-group">
-                    <select id="taskCategorySelect">
-                        <!-- JSでリストを設定 -->
-                    </select>
-                    <select id="subjectSelect">
-                        <option value="">(関連科目なし)</option>
-                    </select>
-                </div>
-
-                <div class="setting-card">
-                    <label class="setting-label">
-                        <input type="checkbox" id="hasDueCheckbox"> ⏰ 期限を設定する
-                    </label>
-                    <div id="dueDateInputArea" class="sub-input-area" style="display: none;">
-                        <input type="datetime-local" id="dueDateTimeInput">
+                <div id="taskFormContent" class="task-form-content" style="display: none;">
+                    <h2 id="taskFormHeading" style="margin-top: 0;">➕ タスクの追加</h2>
+                    <div class="input-group">
+                        <input type="text" id="taskInput" placeholder="やることを入力...">
                     </div>
-                </div>
 
-                <div class="setting-card">
-                    <div class="setting-label-text">🔄 繰り返しの設定</div>
-                    <select id="repeatTypeSelect">
-                        <option value="none">繰り返しなし</option>
-                        <option value="class_reset">🏫 毎授業用（提出後に次の指定曜日で復活）</option>
-                        <option value="weekly">毎週指定曜日</option>
-                        <option value="biweekly">隔週（2週間ごと）指定曜日</option>
-                    </select>
+                    <div class="input-group">
+                        <select id="taskCategorySelect">
+                            <!-- JSでリストを設定 -->
+                        </select>
+                        <select id="subjectSelect">
+                            <option value="">(関連科目なし)</option>
+                        </select>
+                    </div>
 
-                    <div id="repeatSubArea" class="sub-input-area" style="display: none;">
-                        <div class="repeat-days-title">対象の曜日を選択:</div>
-                        <div class="days-checkbox-group">
-                            <label><input type="checkbox" class="repeat-day-cb" value="月">月</label>
-                            <label><input type="checkbox" class="repeat-day-cb" value="火">火</label>
-                            <label><input type="checkbox" class="repeat-day-cb" value="水">水</label>
-                            <label><input type="checkbox" class="repeat-day-cb" value="木">木</label>
-                            <label><input type="checkbox" class="repeat-day-cb" value="金">金</label>
-                            <label><input type="checkbox" class="repeat-day-cb" value="土">土</label>
-                            <label><input type="checkbox" class="repeat-day-cb" value="日">日</label>
-                        </div>
-                        <div class="repeat-until-group">
-                            <label for="repeatUntilInput">いつまで繰り返すか (終了日):</label>
-                            <input type="date" id="repeatUntilInput">
+                    <div class="setting-card">
+                        <label class="setting-label">
+                            <input type="checkbox" id="hasDueCheckbox"> ⏰ 期限を設定する
+                        </label>
+                        <div id="dueDateInputArea" class="sub-input-area" style="display: none;">
+                            <input type="datetime-local" id="dueDateTimeInput">
                         </div>
                     </div>
-                </div>
 
-                <button id="addTaskBtn">💾 タスク追加</button>
+                    <div class="setting-card">
+                        <div class="setting-label-text">🔄 繰り返しの設定</div>
+                        <select id="repeatTypeSelect">
+                            <option value="none">繰り返しなし</option>
+                            <option value="class_reset">🏫 毎授業用（提出後に次の指定曜日で復活）</option>
+                            <option value="weekly">毎週指定曜日</option>
+                            <option value="biweekly">隔週（2週間ごと）指定曜日</option>
+                        </select>
+
+                        <div id="repeatSubArea" class="sub-input-area" style="display: none;">
+                            <div class="repeat-days-title">対象の曜日を選択:</div>
+                            <div class="days-checkbox-group">
+                                <label><input type="checkbox" class="repeat-day-cb" value="月">月</label>
+                                <label><input type="checkbox" class="repeat-day-cb" value="火">火</label>
+                                <label><input type="checkbox" class="repeat-day-cb" value="水">水</label>
+                                <label><input type="checkbox" class="repeat-day-cb" value="木">木</label>
+                                <label><input type="checkbox" class="repeat-day-cb" value="金">金</label>
+                                <label><input type="checkbox" class="repeat-day-cb" value="土">土</label>
+                                <label><input type="checkbox" class="repeat-day-cb" value="日">日</label>
+                            </div>
+                            <div class="repeat-until-group">
+                                <label for="repeatUntilInput">いつまで繰り返すか (終了日):</label>
+                                <input type="date" id="repeatUntilInput">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="addTaskBtn">💾 タスク追加</button>
+                    <button id="cancelTaskEditBtn" class="btn-secondary" style="display: none; width: 100%; margin-top: 6px;">キャンセル</button>
+                </div>
             </div>
 
-            <div class="section">
+            <!-- タスク一覧エリア -->
+            <div class="section" style="margin-top: 16px;">
                 <h2>📋 やることリスト</h2>
                 <ul id="taskList" class="notebook-task-list"></ul>
+                
+                <!-- リスト最下部のジャンル連動新規追加ボタン -->
+                <button id="addTaskFromBottomBtn" class="add-task-bottom-btn">
+                    ➕ タスクを新規追加
+                </button>
             </div>
         </div>
     </div>
