@@ -7,10 +7,13 @@ const times = [
     { period: 5, text: "16:20\n17:50" }
 ];
 const days = ["月", "火", "水", "木", "金"];
+const dayMap = { "日": 0, "月": 1, "火": 2, "水": 3, "木": 4, "金": 5, "土": 6 };
 
 // データ保持
 let timetableData = JSON.parse(localStorage.getItem('myTimetable')) || {};
 let tasks = JSON.parse(localStorage.getItem('myTasks')) || [];
+let customCategories = JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"];
+let activeCategoryFilter = "すべて";
 
 // 選択中のコマ保持・選択カラーの初期値
 let activeCellKey = null;
@@ -26,21 +29,18 @@ const viewTimetable = document.getElementById('viewTimetable');
 const viewTask = document.getElementById('viewTask');
 const timetableBody = document.getElementById('timetableBody');
 
-// モーダル関連要素
+// モーダル1 (時間割)
 const modalOverlay = document.getElementById('modalOverlay');
 const modalCloseBtn = document.getElementById('modalCloseBtn');
 const modalDetailView = document.getElementById('modalDetailView');
 const modalEditView = document.getElementById('modalEditView');
-
 const modalSubjectTitle = document.getElementById('modalSubjectTitle');
 const modalSubjectMeta = document.getElementById('modalSubjectMeta');
 const modalTeacherEmail = document.getElementById('modalTeacherEmail');
 const modalEditBtn = document.getElementById('modalEditBtn');
-
 const memoTextInput = document.getElementById('memoTextInput');
 const addMemoBtn = document.getElementById('addMemoBtn');
 const memoList = document.getElementById('memoList');
-
 const modalFormTitle = document.getElementById('modalFormTitle');
 const modalSubjectInput = document.getElementById('modalSubjectInput');
 const modalTeacherInput = document.getElementById('modalTeacherInput');
@@ -49,12 +49,19 @@ const modalRoomInput = document.getElementById('modalRoomInput');
 const saveSubjectBtn = document.getElementById('saveSubjectBtn');
 const deleteSubjectBtn = document.getElementById('deleteSubjectBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
-
-// カラーサークル要素
 const colorCircles = document.querySelectorAll('.color-circle');
+
+// モーダル2 (リスト管理)
+const listManageModalOverlay = document.getElementById('listManageModalOverlay');
+const manageListBtn = document.getElementById('manageListBtn');
+const listManageCloseBtn = document.getElementById('listManageCloseBtn');
+const newListNameInput = document.getElementById('newListNameInput');
+const addNewListBtn = document.getElementById('addNewListBtn');
+const customCategoryList = document.getElementById('customCategoryList');
 
 // タスク要素
 const taskInput = document.getElementById('taskInput');
+const taskCategorySelect = document.getElementById('taskCategorySelect');
 const subjectSelect = document.getElementById('subjectSelect');
 const hasDueCheckbox = document.getElementById('hasDueCheckbox');
 const dueDateInputArea = document.getElementById('dueDateInputArea');
@@ -65,11 +72,15 @@ const repeatUntilInput = document.getElementById('repeatUntilInput');
 const addTaskBtn = document.getElementById('addTaskBtn');
 const messageArea = document.getElementById('messageArea');
 const taskList = document.getElementById('taskList');
+const listTabContainer = document.getElementById('listTabContainer');
 
-// 初期表示処理
+// 初期表示
 window.addEventListener('DOMContentLoaded', () => {
+    checkAndResetClassTasks();
     renderTimetable();
     updateSubjectSelectOptions();
+    renderCategoryFilterTabs();
+    updateCategorySelectOptions();
     renderTasks();
     setupColorPicker();
     setupAuthListeners();
@@ -79,7 +90,65 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Firebase 認証リスナーの初期化
+// 毎授業用タスクの自動復活判定
+function checkAndResetClassTasks() {
+    if (!Array.isArray(tasks)) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    let isUpdated = false;
+
+    tasks = tasks.map(task => {
+        if (task.completed && task.repeat && task.repeat.type === 'class_reset' && task.resetDate) {
+            if (task.repeat.until && todayStr > task.repeat.until) {
+                return task;
+            }
+
+            if (todayStr >= task.resetDate) {
+                isUpdated = true;
+                return {
+                    ...task,
+                    completed: false,
+                    resetDate: null
+                };
+            }
+        }
+        return task;
+    });
+
+    if (isUpdated) {
+        localStorage.setItem('myTasks', JSON.stringify(tasks));
+        saveUserDataToCloud();
+    }
+}
+
+// 次の指定曜日（YYYY-MM-DD）を取得
+function getNextClassDate(targetDays) {
+    const today = new Date();
+    const currentDayNum = today.getDay();
+    const targetNums = targetDays.map(d => dayMap[d]).sort((a, b) => a - b);
+    
+    let daysUntilNext = null;
+    for (let targetNum of targetNums) {
+        let diff = targetNum - currentDayNum;
+        if (diff <= 0) diff += 7;
+        if (daysUntilNext === null || diff < daysUntilNext) {
+            daysUntilNext = diff;
+        }
+    }
+
+    if (daysUntilNext === null) daysUntilNext = 7;
+
+    const nextDate = new Date(today);
+    nextDate.setDate(today.getDate() + daysUntilNext);
+
+    const year = nextDate.getFullYear();
+    const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+    const day = String(nextDate.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+// Firebase 認証
 function setupAuthListeners() {
     if (!window.firebaseAuth) {
         setTimeout(setupAuthListeners, 100);
@@ -123,7 +192,7 @@ function setupAuthListeners() {
     }
 }
 
-// クラウド（Firestore）へデータ同期
+// クラウドへデータ同期
 async function saveUserDataToCloud() {
     if (!currentUser || !window.firebaseDb) return;
 
@@ -132,6 +201,7 @@ async function saveUserDataToCloud() {
     const dataToSave = {
         timetable: JSON.parse(localStorage.getItem('myTimetable')) || {},
         tasks: JSON.parse(localStorage.getItem('myTasks')) || [],
+        categories: JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"],
         updatedAt: serverTimestamp()
     };
 
@@ -143,7 +213,7 @@ async function saveUserDataToCloud() {
     }
 }
 
-// クラウド（Firestore）からデータ読み込み
+// クラウドからデータ読み込み
 async function loadUserDataFromCloud(uid) {
     if (!window.firebaseDb) return;
 
@@ -157,11 +227,17 @@ async function loadUserDataFromCloud(uid) {
             const data = docSnap.data();
             if (data.timetable) localStorage.setItem('myTimetable', JSON.stringify(data.timetable));
             if (data.tasks) localStorage.setItem('myTasks', JSON.stringify(data.tasks));
+            if (data.categories) localStorage.setItem('myCategories', JSON.stringify(data.categories));
 
             timetableData = data.timetable || {};
             tasks = data.tasks || [];
+            customCategories = data.categories || ["未分類", "提出物", "買い物"];
+
+            checkAndResetClassTasks();
             renderTimetable();
             updateSubjectSelectOptions();
+            renderCategoryFilterTabs();
+            updateCategorySelectOptions();
             renderTasks();
             console.log("☁️ クラウドからデータを同期しました");
         }
@@ -170,7 +246,7 @@ async function loadUserDataFromCloud(uid) {
     }
 }
 
-// カラーピッカーの初期化
+// カラーピッカー
 function setupColorPicker() {
     colorCircles.forEach(circle => {
         circle.addEventListener('click', () => {
@@ -192,7 +268,7 @@ function setSelectedColorInPicker(colorCode) {
     });
 }
 
-// タブ切り替え処理
+// タブ切り替え
 tabTimetableBtn.addEventListener('click', () => {
     tabTimetableBtn.classList.add('active');
     tabTaskBtn.classList.remove('active');
@@ -209,7 +285,7 @@ tabTaskBtn.addEventListener('click', () => {
     messageArea.textContent = '';
 });
 
-// モーダル閉じる
+// モーダル1 (時間割) 閉じる
 modalCloseBtn.onclick = closeModal;
 modalOverlay.onclick = (e) => {
     if (e.target === modalOverlay) closeModal();
@@ -219,6 +295,92 @@ function closeModal() {
     modalOverlay.style.display = 'none';
     activeCellKey = null;
 }
+
+// モーダル2 (リスト管理) 閉じる
+listManageCloseBtn.onclick = () => { listManageModalOverlay.style.display = 'none'; };
+manageListBtn.onclick = () => {
+    renderCustomCategoryManageList();
+    listManageModalOverlay.style.display = 'flex';
+};
+
+// リスト（カテゴリ）タブの生成・レンダリング
+function renderCategoryFilterTabs() {
+    listTabContainer.innerHTML = '';
+    const allTabList = ["すべて", ...customCategories];
+
+    allTabList.forEach(catName => {
+        const chip = document.createElement('div');
+        chip.className = `list-filter-chip ${activeCategoryFilter === catName ? 'active' : ''}`;
+        chip.textContent = catName;
+        chip.onclick = () => {
+            activeCategoryFilter = catName;
+            renderCategoryFilterTabs();
+            renderTasks();
+        };
+        listTabContainer.appendChild(chip);
+    });
+}
+
+// ドロップダウン用リスト更新
+function updateCategorySelectOptions() {
+    taskCategorySelect.innerHTML = '';
+    customCategories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        taskCategorySelect.appendChild(option);
+    });
+}
+
+// 管理画面内のリスト生成
+function renderCustomCategoryManageList() {
+    customCategoryList.innerHTML = '';
+    customCategories.forEach((cat, index) => {
+        const li = document.createElement('li');
+        li.textContent = cat;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'memo-del-btn';
+        delBtn.textContent = '✖ 削除';
+        delBtn.onclick = async () => {
+            if (customCategories.length <= 1) {
+                alert('リストは最低1つ残す必要があります。');
+                return;
+            }
+            customCategories.splice(index, 1);
+            localStorage.setItem('myCategories', JSON.stringify(customCategories));
+            await saveUserDataToCloud();
+            renderCategoryFilterTabs();
+            updateCategorySelectOptions();
+            renderCustomCategoryManageList();
+            renderTasks();
+        };
+
+        li.appendChild(delBtn);
+        customCategoryList.appendChild(li);
+    });
+}
+
+// 新規リスト追加
+addNewListBtn.onclick = async () => {
+    const newCat = newListNameInput.value.trim();
+    if (!newCat) return;
+
+    if (customCategories.includes(newCat)) {
+        alert('すでに同じ名前のリストが存在します。');
+        return;
+    }
+
+    customCategories.push(newCat);
+    localStorage.setItem('myCategories', JSON.stringify(customCategories));
+    await saveUserDataToCloud();
+    
+    newListNameInput.value = '';
+    renderCategoryFilterTabs();
+    updateCategorySelectOptions();
+    renderCustomCategoryManageList();
+    renderTasks();
+};
 
 // 時間割描画
 function renderTimetable() {
@@ -263,7 +425,6 @@ function renderTimetable() {
     });
 }
 
-// コマ詳細モーダル表示
 function openCellModal(key, day, period) {
     activeCellKey = key;
     const cellData = timetableData[key];
@@ -319,7 +480,6 @@ cancelEditBtn.onclick = () => {
     }
 };
 
-// 科目の保存
 saveSubjectBtn.onclick = async () => {
     const subject = modalSubjectInput.value.trim();
     const teacher = modalTeacherInput.value.trim();
@@ -348,7 +508,6 @@ saveSubjectBtn.onclick = async () => {
     messageArea.textContent = '💾 科目を保存しました！';
 };
 
-// 科目の削除
 deleteSubjectBtn.onclick = async () => {
     if (confirm('このコマの科目を削除しますか？')) {
         delete timetableData[activeCellKey];
@@ -361,7 +520,6 @@ deleteSubjectBtn.onclick = async () => {
     }
 };
 
-// メモ追加
 addMemoBtn.onclick = async () => {
     const text = memoTextInput.value.trim();
     if (!text) return;
@@ -419,7 +577,7 @@ function renderMemos(memos) {
 }
 
 function updateSubjectSelectOptions() {
-    subjectSelect.innerHTML = '<option value="">(科目なし)</option>';
+    subjectSelect.innerHTML = '<option value="">(関連科目なし)</option>';
     const subjectList = [];
     Object.values(timetableData).forEach(item => {
         if (item && item.subject && !subjectList.includes(item.subject)) {
@@ -435,7 +593,7 @@ function updateSubjectSelectOptions() {
     });
 }
 
-// タスク関連処理
+// タスク追加
 hasDueCheckbox.addEventListener('change', (e) => {
     dueDateInputArea.style.display = e.target.checked ? 'block' : 'none';
     if (!e.target.checked) dueDateTimeInput.value = '';
@@ -447,6 +605,7 @@ repeatTypeSelect.addEventListener('change', (e) => {
 
 addTaskBtn.addEventListener('click', async () => {
     const text = taskInput.value.trim();
+    const selectedCategory = taskCategorySelect.value || "未分類";
     const selectedSubject = subjectSelect.value;
     const hasDue = hasDueCheckbox.checked;
     const dueDateTime = hasDue ? dueDateTimeInput.value : null;
@@ -482,9 +641,11 @@ addTaskBtn.addEventListener('click', async () => {
     tasks.push({
         id: Date.now(),
         text: text,
+        category: selectedCategory,
         subject: selectedSubject,
         completed: false,
         dueDate: dueDateTime,
+        resetDate: null,
         repeat: { type: repeatType, days: repeatDays, until: repeatUntil }
     });
 
@@ -506,7 +667,27 @@ addTaskBtn.addEventListener('click', async () => {
 
 async function toggleTask(id) {
     if (!Array.isArray(tasks)) return;
-    tasks = tasks.map(task => task.id === id ? { ...task, completed: !task.completed } : task);
+
+    tasks = tasks.map(task => {
+        if (task.id === id) {
+            const nextCompletedState = !task.completed;
+            let nextResetDate = task.resetDate;
+
+            if (nextCompletedState && task.repeat && task.repeat.type === 'class_reset' && task.repeat.days.length > 0) {
+                nextResetDate = getNextClassDate(task.repeat.days);
+            } else if (!nextCompletedState) {
+                nextResetDate = null;
+            }
+
+            return {
+                ...task,
+                completed: nextCompletedState,
+                resetDate: nextResetDate
+            };
+        }
+        return task;
+    });
+
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
@@ -527,11 +708,17 @@ function formatDueDate(isoString) {
     return `⏰ ${date.getMonth()+1}/${date.getDate()} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 }
 
-function formatRepeatInfo(repeat) {
+function formatRepeatInfo(repeat, resetDate) {
     if (!repeat || repeat.type === 'none') return '';
-    const typeText = repeat.type === 'weekly' ? '毎週' : '隔週';
+    
+    let typeText = '毎週';
+    if (repeat.type === 'biweekly') typeText = '隔週';
+    if (repeat.type === 'class_reset') typeText = '🏫 毎授業';
+
     const untilText = repeat.until ? ` ~${new Date(repeat.until).getMonth()+1}/${new Date(repeat.until).getDate()}` : '';
-    return `🔄 ${typeText}(${repeat.days.join(',')})${untilText}`;
+    const resetInfo = resetDate ? ` (次回復活: ${resetDate.split('-')[1]}/${resetDate.split('-')[2]})` : '';
+
+    return `🔄 ${typeText}(${repeat.days.join(',')})${untilText}${resetInfo}`;
 }
 
 function renderTasks() {
@@ -541,7 +728,18 @@ function renderTasks() {
         return;
     }
 
-    tasks.forEach(task => {
+    // カテゴリフィルター適用
+    const filteredTasks = tasks.filter(task => {
+        if (activeCategoryFilter === 'すべて') return true;
+        return (task.category || '未分類') === activeCategoryFilter;
+    });
+
+    if (filteredTasks.length === 0) {
+        taskList.innerHTML = `<li style="color:#aaa; border:none;">「${activeCategoryFilter}」のタスクはありません</li>`;
+        return;
+    }
+
+    filteredTasks.forEach(task => {
         const li = document.createElement('li');
         const leftDiv = document.createElement('div');
         leftDiv.className = 'task-left';
@@ -555,6 +753,12 @@ function renderTasks() {
 
         const tagsDiv = document.createElement('div');
         tagsDiv.className = 'task-tags';
+
+        // カテゴリ（リスト）タグ
+        const categoryTag = document.createElement('span');
+        categoryTag.className = 'category-tag';
+        categoryTag.textContent = task.category || '未分類';
+        tagsDiv.appendChild(categoryTag);
 
         if (task.subject) {
             const subjectTag = document.createElement('span');
@@ -573,11 +777,11 @@ function renderTasks() {
         if (task.repeat && task.repeat.type !== 'none') {
             const repeatTag = document.createElement('span');
             repeatTag.className = 'repeat-tag';
-            repeatTag.textContent = formatRepeatInfo(task.repeat);
+            repeatTag.textContent = formatRepeatInfo(task.repeat, task.resetDate);
             tagsDiv.appendChild(repeatTag);
         }
 
-        if (tagsDiv.children.length > 0) infoDiv.appendChild(tagsDiv);
+        infoDiv.appendChild(tagsDiv);
 
         const textSpan = document.createElement('span');
         textSpan.className = `task-text ${task.completed ? 'completed' : ''}`;

@@ -78,12 +78,13 @@
                     <div class="setting-label-text">🔄 繰り返しの設定</div>
                     <select id="repeatTypeSelect">
                         <option value="none">繰り返しなし</option>
+                        <option value="class_reset">🏫 毎授業用（提出後に次の指定曜日で復活）</option>
                         <option value="weekly">毎週指定曜日</option>
                         <option value="biweekly">隔週（2週間ごと）指定曜日</option>
                     </select>
 
                     <div id="repeatSubArea" class="sub-input-area" style="display: none;">
-                        <div class="repeat-days-title">繰り返す曜日を選択:</div>
+                        <div class="repeat-days-title">対象の曜日を選択:</div>
                         <div class="days-checkbox-group">
                             <label><input type="checkbox" class="repeat-day-cb" value="月">月</label>
                             <label><input type="checkbox" class="repeat-day-cb" value="火">火</label>
@@ -110,12 +111,11 @@
         </div>
     </div>
 
-    <!-- ==================== ポップアップモーダル（時間割編集・メモ） ==================== -->
+    <!-- ポップアップモーダル（時間割編集・メモ） -->
     <div id="modalOverlay" class="modal-overlay">
         <div class="modal-content">
             <span id="modalCloseBtn" class="modal-close-btn">&times;</span>
             
-            <!-- 1. 詳細＆メモ確認ビュー -->
             <div id="modalDetailView">
                 <h2 id="modalSubjectTitle">科目名</h2>
                 <p id="modalSubjectMeta" class="modal-meta"></p>
@@ -135,7 +135,6 @@
                 <ul id="memoList" class="memo-list"></ul>
             </div>
 
-            <!-- 2. 科目編集ビュー -->
             <div id="modalEditView" style="display: none;">
                 <h2 id="modalFormTitle">📚 科目の編集</h2>
                 <div class="modal-form">
@@ -161,7 +160,7 @@
 
                     <div class="modal-form-buttons">
                         <button id="saveSubjectBtn" class="btn-primary">💾 保存する</button>
-                        <button id="deleteSubjectBtn" class="btn-danger">🗑️️ このコマを削除</button>
+                        <button id="deleteSubjectBtn" class="btn-danger">🗑 このコマを削除</button>
                         <button id="cancelEditBtn" class="btn-secondary">キャンセル</button>
                     </div>
                 </div>
