@@ -577,14 +577,13 @@ function startEditingSchedItem(item) {
     window.scrollTo({ top: scheduleFormContent.offsetTop - 60, behavior: 'smooth' });
 }
 
-// 高画質24時間円グラフ描画 (Retina/デバイスピクセル比対応)
+// 高画質24時間円グラフ描画 (Retina/高解像度ディスプレイ対応)
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const baseWidth = 380;
     const baseHeight = 380;
 
-    // Canvasの物理ピクセル数をデバイスピクセル比に合わせて拡大設定
     scheduleCanvas.width = baseWidth * dpr;
     scheduleCanvas.height = baseHeight * dpr;
 
@@ -1192,7 +1191,7 @@ function openCellModal(key, day, period) {
         modalSubjectTitle.textContent = cellData.subject;
         modalSubjectMeta.textContent = `${day}曜 ${period}限 | 👤 ${cellData.teacher || '教員未登録'} | 🏫 ${cellData.room || '教室未登録'}`;
         if (cellData.email) modalTeacherEmail.innerHTML = `✉️ <a href="mailto:${cellData.email}">${cellData.email}</a>`;
-        else modalTeacherEmail.textContent = '✉️️ メールアドレス未登録';
+        else modalTeacherEmail.textContent = '✉️ メールアドレス未登録';
 
         renderMemos(cellData.memos || []);
         modalDetailView.style.display = 'block';
