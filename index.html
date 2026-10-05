@@ -95,9 +95,13 @@
             </div>
             <p id="scheduleDayOfWeekText" class="day-of-week-text"></p>
 
-            <!-- 円グラフ表示エリア（高解像度Canvas） -->
+            <!-- 円グラフ表示エリア (HTML/CSSによる高精細ハイブリッドレイヤー構造) -->
             <div class="chart-container">
-                <canvas id="scheduleCanvas" style="width:380px; height:380px; cursor: pointer;"></canvas>
+                <div class="chart-wrapper">
+                    <canvas id="scheduleCanvas" style="width:380px; height:380px;"></canvas>
+                    <div id="scheduleCenterTitle" class="chart-center-title">24H Schedule</div>
+                    <div id="scheduleOverlayLabels" class="chart-overlay-labels"></div>
+                </div>
             </div>
             <p style="text-align: center; font-size: 0.78rem; color: #888; margin-top: -6px;">💡 グラフの扇形タップで編集、空欄タップでその時間に予定を追加できます</p>
 
@@ -122,7 +126,7 @@
                     </div>
 
                     <div class="setting-card">
-                        <div class="setting-label-text">⏱️️ 時間設定モード</div>
+                        <div class="setting-label-text">⏱ 時間設定モード</div>
                         <div class="input-mode-selector">
                             <label><input type="radio" name="timeInputMode" value="range" checked> 開始〜終了時刻</label>
                             <label><input type="radio" name="timeInputMode" value="duration"> 開始時刻 ＋ 所要時間</label>
@@ -298,13 +302,8 @@
                     <label>科目名:</label>
                     <input type="text" id="modalSubjectInput" placeholder="例: 数学">
                     
-                    <label>コマのテーマカラー:</label>
-                    <div class="color-picker-group">
-                        <div class="color-circle" data-color="#F38181" style="background-color: #F38181;"></div>
-                        <div class="color-circle" data-color="#FCE38A" style="background-color: #FCE38A;"></div>
-                        <div class="color-circle" data-color="#EAFFD0" style="background-color: #EAFFD0;"></div>
-                        <div class="color-circle" data-color="#95E1D3" style="background-color: #95E1D3;"></div>
-                    </div>
+                    <label>コマのテーマカラー (全15色):</label>
+                    <div class="color-picker-grid-modal" id="modal15ColorPicker"></div>
 
                     <label>教授・教員名:</label>
                     <input type="text" id="modalTeacherInput" placeholder="例: 山田太郎">

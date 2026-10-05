@@ -1,4 +1,4 @@
-// 30色のくすみパステルカラー定義
+// 30色のくすみパステルカラー（スケジュール・登録用）
 const pastel30Colors = [
     "#FADBD8", "#F5B7B1", "#F1948A", "#EC7063", "#E74C3C",
     "#FDEBD0", "#F8C471", "#F39C12", "#FCF3CF", "#F7DC6F",
@@ -6,6 +6,13 @@ const pastel30Colors = [
     "#D4E6F1", "#A9CCE3", "#7FB3D5", "#E8F8F5", "#A3E4D7",
     "#E8DAEF", "#BB8FCE", "#9B59B6", "#FDEDEC", "#F5EEF8",
     "#E5E8E8", "#CCD1D1", "#BDC3C7", "#EDBB99", "#DC7633"
+];
+
+// 時間割科目用 厳選15カラーパレット
+const pastel15ModalColors = [
+    "#F38181", "#FCE38A", "#EAFFD0", "#95E1D3", "#A9CCE3",
+    "#F8C471", "#A9DFBF", "#BB8FCE", "#F5B7B1", "#7DCEA0",
+    "#F1948A", "#FCF3CF", "#A3E4D7", "#BDC3C7", "#EDBB99"
 ];
 
 const times = [
@@ -36,7 +43,7 @@ let editingTaskId = null;
 let editingMemoTaskId = null;
 let editingSchedItemId = null;
 let activeCellKey = null;
-let selectedColor = "#F38181";
+let selectedColor = pastel15ModalColors[0];
 let schedSelectedColor = pastel30Colors[0];
 let currentUser = null;
 
@@ -59,6 +66,7 @@ const prevDateBtn = document.getElementById('prevDateBtn');
 const nextDateBtn = document.getElementById('nextDateBtn');
 const scheduleDayOfWeekText = document.getElementById('scheduleDayOfWeekText');
 const scheduleCanvas = document.getElementById('scheduleCanvas');
+const scheduleOverlayLabels = document.getElementById('scheduleOverlayLabels');
 const presetScheduleButtons = document.getElementById('presetScheduleButtons');
 const toggleScheduleFormBtn = document.getElementById('toggleScheduleFormBtn');
 const scheduleFormContent = document.getElementById('scheduleFormContent');
@@ -103,7 +111,6 @@ const modalRoomInput = document.getElementById('modalRoomInput');
 const saveSubjectBtn = document.getElementById('saveSubjectBtn');
 const deleteSubjectBtn = document.getElementById('deleteSubjectBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
-const colorCircles = document.querySelectorAll('.color-circle');
 
 const listManageModalOverlay = document.getElementById('listManageModalOverlay');
 const manageListBtn = document.getElementById('manageListBtn');
@@ -138,6 +145,7 @@ window.addEventListener('DOMContentLoaded', () => {
     scheduleDateInput.value = selectedSchedDate;
     setupSidebarEvents();
     init30ColorPicker();
+    initModal15ColorPicker();
     initDurationSelectOptions();
     renderPresetButtons();
     setupInputModeSwitch();
@@ -148,7 +156,6 @@ window.addEventListener('DOMContentLoaded', () => {
     renderCategoryFilterTabs();
     updateCategorySelectOptions();
     renderTasks();
-    setupColorPicker();
     setupAuthListeners();
 
     scheduleCanvas.addEventListener('click', handleCanvasClick);
@@ -285,9 +292,31 @@ function init30ColorPicker() {
         circle.setAttribute('data-color', color);
 
         circle.addEventListener('click', () => {
-            document.querySelectorAll('.color-circle-small').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('#schedColorPicker .color-circle-small').forEach(c => c.classList.remove('active'));
             circle.classList.add('active');
             schedSelectedColor = color;
+        });
+
+        grid.appendChild(circle);
+    });
+}
+
+// 科目用 厳選15色カラーパレットの生成
+function initModal15ColorPicker() {
+    const grid = document.getElementById('modal15ColorPicker');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    pastel15ModalColors.forEach((color, idx) => {
+        const circle = document.createElement('div');
+        circle.className = `color-circle-small ${idx === 0 ? 'active' : ''}`;
+        circle.style.backgroundColor = color;
+        circle.setAttribute('data-color', color);
+
+        circle.addEventListener('click', () => {
+            document.querySelectorAll('#modal15ColorPicker .color-circle-small').forEach(c => c.classList.remove('active'));
+            circle.classList.add('active');
+            selectedColor = color;
         });
 
         grid.appendChild(circle);
@@ -344,7 +373,7 @@ function renderPresetButtons() {
             schedTitleInput.value = preset.title;
             schedSelectedColor = preset.color;
 
-            document.querySelectorAll('.color-circle-small').forEach(circle => {
+            document.querySelectorAll('#schedColorPicker .color-circle-small').forEach(circle => {
                 if (circle.getAttribute('data-color') === preset.color) {
                     circle.classList.add('active');
                 } else {
@@ -565,7 +594,7 @@ function startEditingSchedItem(item) {
     schedStartTimeDur.value = minToTimeStr(item.startMin);
     schedSelectedColor = item.color || pastel30Colors[0];
 
-    document.querySelectorAll('.color-circle-small').forEach(circle => {
+    document.querySelectorAll('#schedColorPicker .color-circle-small').forEach(circle => {
         if (circle.getAttribute('data-color') === schedSelectedColor) {
             circle.classList.add('active');
         } else {
@@ -577,7 +606,7 @@ function startEditingSchedItem(item) {
     window.scrollTo({ top: scheduleFormContent.offsetTop - 60, behavior: 'smooth' });
 }
 
-// 高画質24時間円グラフ描画 (Retina/高解像度ディスプレイ対応)
+// 🎨 ハイブリッド描画: キャンバスには扇形＆目盛り線のみ / テキストは100%HTMLレイヤー描画
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -596,11 +625,13 @@ function draw24HourChart(items) {
 
     ctx.clearRect(0, 0, baseWidth, baseHeight);
 
+    // 背景円
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fillStyle = '#f0ece1';
     ctx.fill();
 
+    // 扇形描画
     items.forEach(item => {
         const startAngle = (item.startMin / 1440) * Math.PI * 2 - Math.PI / 2;
         const endAngle = (item.endMin / 1440) * Math.PI * 2 - Math.PI / 2;
@@ -614,38 +645,9 @@ function draw24HourChart(items) {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.5;
         ctx.stroke();
-
-        const durationMin = item.endMin - item.startMin;
-        if (durationMin >= 12) {
-            const midAngle = (startAngle + endAngle) / 2;
-            const textRadius = radius * 0.7;
-            const textX = centerX + Math.cos(midAngle) * textRadius;
-            const textY = centerY + Math.sin(midAngle) * textRadius;
-
-            ctx.save();
-            ctx.font = 'bold 10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            let labelText = item.title.replace(/^🏫\s*/, '');
-
-            if (durationMin < 45) {
-                if (labelText.includes('休憩')) labelText = '☕';
-                else if (labelText.length > 3) labelText = labelText.substring(0, 2) + '..';
-            } else if (labelText.length > 6 && durationMin < 90) {
-                labelText = labelText.substring(0, 5) + '..';
-            }
-
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3;
-            ctx.strokeText(labelText, textX, textY);
-
-            ctx.fillStyle = '#2c3e50';
-            ctx.fillText(labelText, textX, textY);
-            ctx.restore();
-        }
     });
 
+    // 24時間目盛り線＆数値刻み描画
     for (let h = 0; h < 24; h += 3) {
         const angle = (h / 24) * Math.PI * 2 - Math.PI / 2;
         const lineX1 = centerX + Math.cos(angle) * (radius - 8);
@@ -669,6 +671,7 @@ function draw24HourChart(items) {
         ctx.fillText(`${h}`, textX, textY);
     }
 
+    // ドーナツ中央空白領域
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius * 0.4, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
@@ -677,13 +680,45 @@ function draw24HourChart(items) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = '#4a4238';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('24H Schedule', centerX, centerY);
-
     ctx.restore();
+
+    // HTMLオーバーレイにテキストを配置 (画像の粗さゼロ・完全ベクトル描画)
+    renderOverlayLabelsHTML(items, centerX, centerY, radius);
+}
+
+// HTMLラベル生成処理
+function renderOverlayLabelsHTML(items, centerX, centerY, radius) {
+    scheduleOverlayLabels.innerHTML = '';
+
+    items.forEach(item => {
+        const durationMin = item.endMin - item.startMin;
+        if (durationMin < 12) return;
+
+        const startAngle = (item.startMin / 1440) * Math.PI * 2 - Math.PI / 2;
+        const endAngle = (item.endMin / 1440) * Math.PI * 2 - Math.PI / 2;
+        const midAngle = (startAngle + endAngle) / 2;
+
+        const textRadius = radius * 0.7;
+        const textX = centerX + Math.cos(midAngle) * textRadius;
+        const textY = centerY + Math.sin(midAngle) * textRadius;
+
+        let labelText = item.title.replace(/^🏫\s*/, '');
+
+        if (durationMin < 45) {
+            if (labelText.includes('休憩')) labelText = '☕';
+            else if (labelText.length > 3) labelText = labelText.substring(0, 2) + '..';
+        } else if (labelText.length > 6 && durationMin < 90) {
+            labelText = labelText.substring(0, 5) + '..';
+        }
+
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'chart-label-item';
+        labelDiv.style.left = `${textX}px`;
+        labelDiv.style.top = `${textY}px`;
+        labelDiv.textContent = labelText;
+
+        scheduleOverlayLabels.appendChild(labelDiv);
+    });
 }
 
 function renderScheduleList(items) {
@@ -1023,19 +1058,9 @@ async function loadUserDataFromCloud(uid) {
     }
 }
 
-function setupColorPicker() {
-    colorCircles.forEach(circle => {
-        circle.addEventListener('click', () => {
-            colorCircles.forEach(c => c.classList.remove('active'));
-            circle.classList.add('active');
-            selectedColor = circle.getAttribute('data-color');
-        });
-    });
-}
-
 function setSelectedColorInPicker(colorCode) {
-    selectedColor = colorCode || "#F38181";
-    colorCircles.forEach(circle => {
+    selectedColor = colorCode || pastel15ModalColors[0];
+    document.querySelectorAll('#modal15ColorPicker .color-circle-small').forEach(circle => {
         if (circle.getAttribute('data-color') === selectedColor) circle.classList.add('active');
         else circle.classList.remove('active');
     });
@@ -1160,7 +1185,7 @@ function renderTimetable() {
 
             if (cellData && cellData.subject) {
                 const memoCount = (cellData.memos && cellData.memos.length > 0) ? `📝${cellData.memos.length}` : '';
-                const cardColor = cellData.color || "#F38181";
+                const cardColor = cellData.color || pastel15ModalColors[0];
 
                 const card = document.createElement('div');
                 card.className = 'subject-card';
@@ -1197,7 +1222,7 @@ function openCellModal(key, day, period) {
         modalDetailView.style.display = 'block';
         modalEditView.style.display = 'none';
     } else {
-        showEditForm(day, period, '', "#F38181", '', '', '');
+        showEditForm(day, period, '', pastel15ModalColors[0], '', '', '');
     }
     modalOverlay.style.display = 'flex';
 }
@@ -1205,7 +1230,7 @@ function openCellModal(key, day, period) {
 modalEditBtn.onclick = () => {
     const cellData = timetableData[activeCellKey] || {};
     const [day, period] = activeCellKey.split('_');
-    showEditForm(day, period, cellData.subject || '', cellData.color || "#F38181", cellData.teacher || '', cellData.email || '', cellData.room || '');
+    showEditForm(day, period, cellData.subject || '', cellData.color || pastel15ModalColors[0], cellData.teacher || '', cellData.email || '', cellData.room || '');
 };
 
 function showEditForm(day, period, subject, color, teacher, email, room) {
