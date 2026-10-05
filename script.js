@@ -15,6 +15,7 @@ let tasks = JSON.parse(localStorage.getItem('myTasks')) || [];
 let customCategories = JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"];
 let activeCategoryFilter = "すべて";
 let editingTaskId = null;
+let editingMemoTaskId = null; // 現在メモ編集中のタスクID
 
 // 選択中のコマ保持・選択カラーの初期値
 let activeCellKey = null;
@@ -278,7 +279,7 @@ async function loadUserDataFromCloud(uid) {
             renderCategoryFilterTabs();
             updateCategorySelectOptions();
             renderTasks();
-            console.log("☁️ クラウドからデータを同期しました");
+            console.log("☁️️ クラウドからデータを同期しました");
         }
     } catch (error) {
         console.error("データ同期エラー:", error);
@@ -359,7 +360,6 @@ function renderCategoryFilterTabs() {
         listTabContainer.appendChild(chip);
     });
 
-    // 下部ボタンテキストもカテゴリに連動
     if (activeCategoryFilter === 'すべて') {
         addTaskFromBottomBtn.textContent = '➕ タスクを新規追加';
     } else {
@@ -717,7 +717,7 @@ addTaskBtn.addEventListener('click', async () => {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
-    toggleTaskForm(false); // 追加完了後にフォームを閉じる
+    toggleTaskForm(false);
 });
 
 cancelTaskEditBtn.addEventListener('click', () => {
@@ -784,7 +784,7 @@ function startEditingTask(id) {
     window.scrollTo({ top: viewTask.offsetTop, behavior: 'smooth' });
 }
 
-// タスク個別メモの保存 (改行テキスト対応)
+// タスク個別メモの保存 (ボタン明示クリック時のみ更新)
 async function saveTaskNote(id, noteText) {
     if (!Array.isArray(tasks)) return;
 
@@ -795,6 +795,7 @@ async function saveTaskNote(id, noteText) {
         return t;
     });
 
+    editingMemoTaskId = null; // 編集完了
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
@@ -949,32 +950,90 @@ function renderTasks() {
         headerRow.appendChild(leftDiv);
         headerRow.appendChild(actionsDiv);
 
-        // 改行対応メモ入力・表示領域
+        // 明示的な編集ボタンが必要なメモ領域
         const memoArea = document.createElement('div');
         memoArea.className = 'task-memo-area';
 
-        if (task.note) {
-            const noteDisplay = document.createElement('div');
-            noteDisplay.className = 'task-memo-text';
-            noteDisplay.textContent = task.note;
-            memoArea.appendChild(noteDisplay);
+        const isEditingThisMemo = (editingMemoTaskId === task.id);
+
+        if (isEditingThisMemo) {
+            // 編集モード表示 (入力欄 ＋ 保存・キャンセルボタン)
+            const editModeDiv = document.createElement('div');
+            editModeDiv.className = 'task-memo-edit-mode';
+
+            const noteTextarea = document.createElement('textarea');
+            noteTextarea.placeholder = 'メモを入力 (改行できます)...';
+            noteTextarea.value = task.note || '';
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'task-memo-btn-group';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn-primary';
+            saveBtn.textContent = '💾 保存';
+            saveBtn.onclick = () => saveTaskNote(task.id, noteTextarea.value);
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-secondary';
+            cancelBtn.textContent = 'キャンセル';
+            cancelBtn.onclick = () => {
+                editingMemoTaskId = null;
+                renderTasks();
+            };
+
+            btnGroup.appendChild(saveBtn);
+            btnGroup.appendChild(cancelBtn);
+
+            editModeDiv.appendChild(noteTextarea);
+            editModeDiv.appendChild(btnGroup);
+            memoArea.appendChild(editModeDiv);
+        } else {
+            // 閲覧モード表示 (テキスト表示 ＋ 編集ボタン)
+            const viewModeDiv = document.createElement('div');
+            viewModeDiv.className = 'task-memo-view-mode';
+
+            if (task.note) {
+                const noteDisplay = document.createElement('div');
+                noteDisplay.className = 'task-memo-text';
+                noteDisplay.textContent = task.note;
+                viewModeDiv.appendChild(noteDisplay);
+
+                const editMemoBtn = document.createElement('button');
+                editMemoBtn.className = 'task-memo-edit-btn';
+                editMemoBtn.textContent = '✏️ メモを編集';
+                editMemoBtn.onclick = () => {
+                    editingMemoTaskId = task.id;
+                    renderTasks();
+                };
+                viewModeDiv.appendChild(editMemoBtn);
+            } else {
+                const addMemoBtn = document.createElement('button');
+                addMemoBtn.className = 'task-memo-edit-btn';
+                addMemoBtn.textContent = '➕ メモを追加';
+                addMemoBtn.onclick = () => {
+                    editingMemoTaskId = task.id;
+                    renderTasks();
+                };
+                viewModeDiv.appendChild(addMemoBtn);
+            }
+
+            memoArea.appendChild(viewModeDiv);
         }
 
-        const inputGroup = document.createElement('div');
-        inputGroup.className = 'task-memo-input-group';
-
-        const noteTextarea = document.createElement('textarea');
-        noteTextarea.placeholder = 'メモを入力・更新 (改行もできます)...';
-        noteTextarea.value = task.note || '';
-
-        const noteSaveBtn = document.createElement('button');
-        noteSaveBtn.className = 'btn-primary';
-        noteSaveBtn.textContent = 'メモ保存';
-        noteSaveBtn.onclick = () => saveTaskNote(task.id, noteTextarea.value);
-
-        inputGroup.appendChild(noteTextarea);
-        inputGroup.appendChild(noteSaveBtn);
-        memoArea.appendChild(inputGroup);
+        // ==========================================
+// 🌐 オンライン復帰時の自動バックアップ処理
+// ==========================================
+window.addEventListener('online', async () => {
+    console.log("🌐 インターネットに接続されました。クラウドへデータを自動同期します...");
+    messageArea.textContent = '🌐 オンラインに復帰しました。データを同期中...';
+    
+    // オフライン中に溜まったローカルデータをクラウドへ同期
+    await saveUserDataToCloud();
+    
+    setTimeout(() => {
+        messageArea.textContent = '☁️ クラウドへデータを同期しました！';
+    }, 1500);
+});
 
         li.appendChild(headerRow);
         li.appendChild(memoArea);

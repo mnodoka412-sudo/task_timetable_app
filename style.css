@@ -379,7 +379,7 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .edit-btn { color: #2980b9; }
 .delete-btn { color: #c0392b; }
 
-/* タスクメモ領域 (改行対応) */
+/* タスクメモ領域 (閲覧・編集モード切り替え対応) */
 .task-memo-area {
     background: #faf8f5;
     border: 1px solid #eae5db;
@@ -390,10 +390,44 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
     flex-direction: column;
     gap: 6px;
 }
-.task-memo-input-group { display: flex; flex-direction: column; gap: 6px; }
-.task-memo-input-group textarea {
+
+.task-memo-view-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.task-memo-text {
+    font-size: 0.85rem;
+    color: #555;
+    background: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #e0dacf;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+.task-memo-edit-btn {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    color: #2980b9;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0;
+}
+
+.task-memo-edit-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.task-memo-edit-mode textarea {
     width: 100%;
-    height: 54px;
+    height: 60px;
     padding: 6px;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -402,16 +436,16 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
     font-family: inherit;
     resize: vertical;
 }
-.task-memo-input-group button { align-self: flex-end; padding: 4px 10px; font-size: 0.8rem; }
-.task-memo-text {
-    font-size: 0.85rem;
-    color: #555;
-    background: #fff;
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid #e0dacf;
-    word-break: break-all;
-    white-space: pre-wrap;
+
+.task-memo-btn-group {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.task-memo-btn-group button {
+    padding: 4px 10px;
+    font-size: 0.8rem;
 }
 
 /* リスト最下部追加ボタン */
