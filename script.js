@@ -1020,18 +1020,24 @@ function renderTasks() {
             memoArea.appendChild(viewModeDiv);
         }
 
-        // ==========================================
+   // ==========================================
 // 🌐 オンライン復帰時の自動バックアップ処理
 // ==========================================
 window.addEventListener('online', async () => {
     console.log("🌐 インターネットに接続されました。クラウドへデータを自動同期します...");
-    messageArea.textContent = '🌐 オンラインに復帰しました。データを同期中...';
     
-    // オフライン中に溜まったローカルデータをクラウドへ同期
+    const messageArea = document.getElementById('messageArea');
+    if (messageArea) {
+        messageArea.textContent = '🌐 オンラインに復帰しました。データを同期中...';
+    }
+    
+    // オフライン中に保存したローカルデータをクラウド（Firebase）へ同期
     await saveUserDataToCloud();
     
     setTimeout(() => {
-        messageArea.textContent = '☁️ クラウドへデータを同期しました！';
+        if (messageArea) {
+            messageArea.textContent = '☁️ クラウドへデータを同期しました！';
+        }
     }, 1500);
 });
 
