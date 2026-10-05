@@ -516,7 +516,7 @@ deleteSubjectBtn.onclick = async () => {
         renderTimetable();
         updateSubjectSelectOptions();
         closeModal();
-        messageArea.textContent = '🗑️ コマを削除しました。';
+        messageArea.textContent = '🗑️️ コマを削除しました。';
     }
 };
 
