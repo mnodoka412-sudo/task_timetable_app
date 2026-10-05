@@ -10,6 +10,15 @@
 <body>
 
     <div class="container">
+        <!-- Google 認証・ユーザー情報表示エリア -->
+        <div class="user-auth-area">
+            <button id="googleLoginBtn" class="btn-primary" style="width: 100%; margin-bottom: 12px;">🌐 Googleでログインして同期</button>
+            <div id="userInfo" style="display: none; text-align: center; margin-bottom: 12px; background: #faf8f5; padding: 8px; border-radius: 8px; border: 1px solid #e0dacf;">
+                <span id="userName" style="font-weight: bold; margin-right: 8px;"></span>
+                <button id="logoutBtn" class="btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">ログアウト</button>
+            </div>
+        </div>
+
         <!-- 画面切り替え用ナビゲーションタブ -->
         <div class="tab-navigation">
             <button id="tabTimetableBtn" class="tab-btn active">📅 時間割</button>
@@ -152,13 +161,37 @@
 
                     <div class="modal-form-buttons">
                         <button id="saveSubjectBtn" class="btn-primary">💾 保存する</button>
-                        <button id="deleteSubjectBtn" class="btn-danger">🗑️ このコマを削除</button>
+                        <button id="deleteSubjectBtn" class="btn-danger">🗑️️ このコマを削除</button>
                         <button id="cancelEditBtn" class="btn-secondary">キャンセル</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Firebase SDK の読み込み (v12 ES Modules) -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+      import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAOEV9PTODkNypod7sRBSI6jqxUy8XGo14",
+        authDomain: "taskapp-bd2c9.firebaseapp.com",
+        projectId: "taskapp-bd2c9",
+        storageBucket: "taskapp-bd2c9.firebasestorage.app",
+        messagingSenderId: "315150655148",
+        appId: "1:315150655148:web:00c3a35e2918928c2a8909",
+        measurementId: "G-RJEZ4JDG4R"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      window.firebaseAuth = { auth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged };
+      window.firebaseDb = { db, doc, setDoc, getDoc, serverTimestamp };
+    </script>
 
     <script src="script.js"></script>
 </body>

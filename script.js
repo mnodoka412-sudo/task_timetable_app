@@ -16,6 +16,9 @@ let tasks = JSON.parse(localStorage.getItem('myTasks')) || [];
 let activeCellKey = null;
 let selectedColor = "#F38181";
 
+// ログインユーザー保持
+let currentUser = null;
+
 // 要素取得
 const tabTimetableBtn = document.getElementById('tabTimetableBtn');
 const tabTaskBtn = document.getElementById('tabTaskBtn');
@@ -69,13 +72,105 @@ window.addEventListener('DOMContentLoaded', () => {
     updateSubjectSelectOptions();
     renderTasks();
     setupColorPicker();
+    setupAuthListeners();
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
     }
 });
 
-// カラーピッカー初期化とクリックハンドラ
+// Firebase 認証リスナーの初期化
+function setupAuthListeners() {
+    if (!window.firebaseAuth) {
+        setTimeout(setupAuthListeners, 100);
+        return;
+    }
+
+    const { auth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } = window.firebaseAuth;
+
+    onAuthStateChanged(auth, async (user) => {
+        const loginBtn = document.getElementById('googleLoginBtn');
+        const userInfo = document.getElementById('userInfo');
+        const userName = document.getElementById('userName');
+
+        if (user) {
+            currentUser = user;
+            if (loginBtn) loginBtn.style.display = 'none';
+            if (userInfo) userInfo.style.display = 'block';
+            if (userName) userName.textContent = `${user.displayName} さん`;
+
+            await loadUserDataFromCloud(user.uid);
+        } else {
+            currentUser = null;
+            if (loginBtn) loginBtn.style.display = 'block';
+            if (userInfo) userInfo.style.display = 'none';
+        }
+    });
+
+    const loginBtn = document.getElementById('googleLoginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            const provider = new GoogleAuthProvider();
+            signInWithPopup(auth, provider).catch(error => console.error("ログインエラー:", error));
+        });
+    }
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth);
+        });
+    }
+}
+
+// クラウド（Firestore）へデータ同期
+async function saveUserDataToCloud() {
+    if (!currentUser || !window.firebaseDb) return;
+
+    const { db, doc, setDoc, serverTimestamp } = window.firebaseDb;
+
+    const dataToSave = {
+        timetable: JSON.parse(localStorage.getItem('myTimetable')) || {},
+        tasks: JSON.parse(localStorage.getItem('myTasks')) || [],
+        updatedAt: serverTimestamp()
+    };
+
+    try {
+        await setDoc(doc(db, 'users', currentUser.uid), dataToSave, { merge: true });
+        console.log("☁️ クラウドへ自動バックアップ完了");
+    } catch (error) {
+        console.error("クラウドバックアップエラー:", error);
+    }
+}
+
+// クラウド（Firestore）からデータ読み込み
+async function loadUserDataFromCloud(uid) {
+    if (!window.firebaseDb) return;
+
+    const { db, doc, getDoc } = window.firebaseDb;
+
+    try {
+        const docRef = doc(db, 'users', uid);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.timetable) localStorage.setItem('myTimetable', JSON.stringify(data.timetable));
+            if (data.tasks) localStorage.setItem('myTasks', JSON.stringify(data.tasks));
+
+            timetableData = data.timetable || {};
+            tasks = data.tasks || [];
+            renderTimetable();
+            updateSubjectSelectOptions();
+            renderTasks();
+            console.log("☁️ クラウドからデータを同期しました");
+        }
+    } catch (error) {
+        console.error("データ同期エラー:", error);
+    }
+}
+
+// カラーピッカーの初期化
 function setupColorPicker() {
     colorCircles.forEach(circle => {
         circle.addEventListener('click', () => {
@@ -86,7 +181,6 @@ function setupColorPicker() {
     });
 }
 
-// カラー選択状態の表示反映関数
 function setSelectedColorInPicker(colorCode) {
     selectedColor = colorCode || "#F38181";
     colorCircles.forEach(circle => {
@@ -126,7 +220,7 @@ function closeModal() {
     activeCellKey = null;
 }
 
-// 時間割の描画
+// 時間割描画
 function renderTimetable() {
     timetableBody.innerHTML = '';
     times.forEach(t => {
@@ -146,7 +240,7 @@ function renderTimetable() {
 
             if (cellData && cellData.subject) {
                 const memoCount = (cellData.memos && cellData.memos.length > 0) ? `📝${cellData.memos.length}` : '';
-                const cardColor = cellData.color || "#F38181"; // デフォルトピンク
+                const cardColor = cellData.color || "#F38181";
 
                 const card = document.createElement('div');
                 card.className = 'subject-card';
@@ -169,7 +263,7 @@ function renderTimetable() {
     });
 }
 
-// コマタップ時にモーダルを開く
+// コマ詳細モーダル表示
 function openCellModal(key, day, period) {
     activeCellKey = key;
     const cellData = timetableData[key];
@@ -195,14 +289,12 @@ function openCellModal(key, day, period) {
     modalOverlay.style.display = 'flex';
 }
 
-// 編集ボタン押下時
 modalEditBtn.onclick = () => {
     const cellData = timetableData[activeCellKey] || {};
     const [day, period] = activeCellKey.split('_');
     showEditForm(day, period, cellData.subject || '', cellData.color || "#F38181", cellData.teacher || '', cellData.email || '', cellData.room || '');
 };
 
-// 編集フォーム表示の切り替え
 function showEditForm(day, period, subject, color, teacher, email, room) {
     modalFormTitle.textContent = `📚 科目の編集 (${day}曜 ${period}限)`;
     modalSubjectInput.value = subject;
@@ -227,8 +319,8 @@ cancelEditBtn.onclick = () => {
     }
 };
 
-// 科目データの保存
-saveSubjectBtn.onclick = () => {
+// 科目の保存
+saveSubjectBtn.onclick = async () => {
     const subject = modalSubjectInput.value.trim();
     const teacher = modalTeacherInput.value.trim();
     const email = modalEmailInput.value.trim();
@@ -243,23 +335,25 @@ saveSubjectBtn.onclick = () => {
 
     timetableData[activeCellKey] = {
         subject,
-        color: selectedColor, // 選んだカラーを確実に登録
+        color: selectedColor,
         teacher, email, room,
         memos: currentCell.memos || []
     };
 
     localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    await saveUserDataToCloud();
     renderTimetable();
     updateSubjectSelectOptions();
     closeModal();
     messageArea.textContent = '💾 科目を保存しました！';
 };
 
-// 科目コマの削除
-deleteSubjectBtn.onclick = () => {
+// 科目の削除
+deleteSubjectBtn.onclick = async () => {
     if (confirm('このコマの科目を削除しますか？')) {
         delete timetableData[activeCellKey];
         localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+        await saveUserDataToCloud();
         renderTimetable();
         updateSubjectSelectOptions();
         closeModal();
@@ -267,8 +361,8 @@ deleteSubjectBtn.onclick = () => {
     }
 };
 
-// メモ機能の処理
-addMemoBtn.onclick = () => {
+// メモ追加
+addMemoBtn.onclick = async () => {
     const text = memoTextInput.value.trim();
     if (!text) return;
 
@@ -286,15 +380,17 @@ addMemoBtn.onclick = () => {
     });
 
     localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    await saveUserDataToCloud();
     renderMemos(timetableData[activeCellKey].memos);
     renderTimetable();
     memoTextInput.value = '';
 };
 
-function deleteMemo(memoId) {
+async function deleteMemo(memoId) {
     if (!timetableData[activeCellKey] || !timetableData[activeCellKey].memos) return;
     timetableData[activeCellKey].memos = timetableData[activeCellKey].memos.filter(m => m.id !== memoId);
     localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    await saveUserDataToCloud();
     renderMemos(timetableData[activeCellKey].memos);
     renderTimetable();
 }
@@ -322,7 +418,6 @@ function renderMemos(memos) {
     });
 }
 
-// ドロップダウン更新
 function updateSubjectSelectOptions() {
     subjectSelect.innerHTML = '<option value="">(科目なし)</option>';
     const subjectList = [];
@@ -340,7 +435,7 @@ function updateSubjectSelectOptions() {
     });
 }
 
-// タスク管理機能
+// タスク関連処理
 hasDueCheckbox.addEventListener('change', (e) => {
     dueDateInputArea.style.display = e.target.checked ? 'block' : 'none';
     if (!e.target.checked) dueDateTimeInput.value = '';
@@ -350,7 +445,7 @@ repeatTypeSelect.addEventListener('change', (e) => {
     repeatSubArea.style.display = e.target.value === 'none' ? 'none' : 'block';
 });
 
-addTaskBtn.addEventListener('click', () => {
+addTaskBtn.addEventListener('click', async () => {
     const text = taskInput.value.trim();
     const selectedSubject = subjectSelect.value;
     const hasDue = hasDueCheckbox.checked;
@@ -394,6 +489,7 @@ addTaskBtn.addEventListener('click', () => {
     });
 
     localStorage.setItem('myTasks', JSON.stringify(tasks));
+    await saveUserDataToCloud();
     renderTasks();
 
     taskInput.value = '';
@@ -408,17 +504,19 @@ addTaskBtn.addEventListener('click', () => {
     messageArea.textContent = '💾 タスクを追加しました！';
 });
 
-function toggleTask(id) {
+async function toggleTask(id) {
     if (!Array.isArray(tasks)) return;
     tasks = tasks.map(task => task.id === id ? { ...task, completed: !task.completed } : task);
     localStorage.setItem('myTasks', JSON.stringify(tasks));
+    await saveUserDataToCloud();
     renderTasks();
 }
 
-function deleteTask(id) {
+async function deleteTask(id) {
     if (!Array.isArray(tasks)) return;
     tasks = tasks.filter(task => task.id !== id);
     localStorage.setItem('myTasks', JSON.stringify(tasks));
+    await saveUserDataToCloud();
     renderTasks();
 }
 
