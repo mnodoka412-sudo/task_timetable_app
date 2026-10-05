@@ -6,6 +6,8 @@
     <title>スマートライフ＆タスク管理</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
+    <!-- グラフ描画用 Chart.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -23,6 +25,7 @@
             <button class="sidebar-nav-btn" data-target="viewSchedule">🕐 1日スケジュール</button>
             <button class="sidebar-nav-btn" data-target="viewTimetable">📅 週時間割</button>
             <button class="sidebar-nav-btn" data-target="viewTask">📝 タスク管理</button>
+            <button class="sidebar-nav-btn" data-target="viewFocus">⏱️ 集中＆記録</button>
         </nav>
     </div>
 
@@ -63,6 +66,14 @@
                 </div>
             </div>
 
+            <!-- 本日の授業 出欠記録エリア -->
+            <div class="dashboard-card">
+                <h2>🏫 本日の授業 出欠登録</h2>
+                <div id="todayAttendanceContainer">
+                    <p style="font-size:0.85rem; color:#888;">本日の授業予定を取得中...</p>
+                </div>
+            </div>
+
             <!-- 2. 今週期限のタスク -->
             <div class="dashboard-card">
                 <h2>⏰ 今週期限のタスク</h2>
@@ -95,7 +106,7 @@
             </div>
             <p id="scheduleDayOfWeekText" class="day-of-week-text"></p>
 
-            <!-- 円グラフ表示エリア (HTML/CSSによる高精細ハイブリッドレイヤー構造) -->
+            <!-- 円グラフ表示エリア -->
             <div class="chart-container">
                 <div class="chart-wrapper">
                     <canvas id="scheduleCanvas" style="width:380px; height:380px;"></canvas>
@@ -173,7 +184,7 @@
         <!-- ==================== 2. 時間割画面 ==================== -->
         <div id="viewTimetable" class="view-section">
             <h1>週時間割</h1>
-            <p class="timetable-guide">💡 コマをタップすると、科目の確認・メモ入力・編集ができます。</p>
+            <p class="timetable-guide">💡 コマをタップすると、科目の確認・出欠管理・メモ入力・編集ができます。</p>
             
             <div class="timetable-wrapper">
                 <table class="timetable">
@@ -198,7 +209,7 @@
 
             <div class="list-filter-section">
                 <div id="listTabContainer" class="list-tab-container"></div>
-                <button id="manageListBtn" class="btn-secondary list-manage-btn">⚙️ リスト（分類）の作成・管理</button>
+                <button id="manageListBtn" class="btn-secondary list-manage-btn">⚙ リスト（分類）の作成・管理</button>
             </div>
 
             <div class="task-form-wrapper">
@@ -270,9 +281,90 @@
                 </button>
             </div>
         </div>
+
+        <!-- ==================== 4. 集中＆記録画面 ==================== -->
+        <div id="viewFocus" class="view-section">
+            <h1>⏱️ 集中＆記録</h1>
+
+            <!-- 1. タイマー操作エリア -->
+            <div class="dashboard-card">
+                <h2>⏱️ 集中タイマー</h2>
+                
+                <div class="setting-card">
+                    <div class="setting-label-text">🎯 集中する科目・タスクを選択</div>
+                    <select id="focusTargetSelect">
+                        <option value="全般">全般（指定なし）</option>
+                    </select>
+                    <!-- 新規科目自由追加エリア -->
+                    <div id="customSubjectInputArea" style="display:none; margin-top:8px;" class="input-group">
+                        <input type="text" id="customSubjectInput" placeholder="新しい科目名を入力 (例: 世界史, 資格勉強...)">
+                        <button id="saveCustomSubjectBtn" class="btn-primary" style="font-size:0.8rem; padding:6px 12px;">追加</button>
+                    </div>
+                </div>
+
+                <div class="setting-card" style="margin-top:8px;">
+                    <div class="setting-label-text">モード選択</div>
+                    <div class="input-mode-selector" style="flex-direction:column; gap:8px;">
+                        <label><input type="radio" name="focusTimerMode" value="pomodoro" checked> 🍅 ポモドーロ (作業25分 ⇄ 休憩5分 ループ)</label>
+                        <label><input type="radio" name="focusTimerMode" value="countdown"> ⏳ カウントダウン (時間指定タイマー)</label>
+                        <label><input type="radio" name="focusTimerMode" value="stopwatch"> ⏱️ ストップウォッチ (経過計測)</label>
+                    </div>
+
+                    <!-- ポモドーロ案内表示 -->
+                    <div id="pomodoroInfoArea" style="margin-top:10px; font-size:0.85rem; color:#27ae60; font-weight:bold;">
+                        🍅 25分集中 ➔ 5分休憩 を自動で繰り返します。
+                    </div>
+
+                    <!-- カウントダウン時間設定エリア -->
+                    <div id="countdownSettingsArea" style="display:none; margin-top:12px;">
+                        <div class="setting-label-text">時間設定 (1分単位)</div>
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                            <input type="number" id="countdownCustomMinutes" value="25" min="1" max="300" style="width:80px; padding:6px; border-radius:6px; border:1px solid #ccc; font-size:1rem; font-weight:bold;"> 分
+                        </div>
+
+                        <div class="setting-label-text" style="font-size:0.8rem; color:#777;">⚡ 簡易設定ボタン (ワンタップ)</div>
+                        <div class="preset-buttons-container">
+                            <button class="preset-timer-btn" data-min="15">15分</button>
+                            <button class="preset-timer-btn" data-min="25">25分</button>
+                            <button class="preset-timer-btn" data-min="30">30分</button>
+                            <button class="preset-timer-btn" data-min="45">45分</button>
+                            <button class="preset-timer-btn" data-min="60">60分</button>
+                            <button class="preset-timer-btn" data-min="90">90分</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タイマー大文字表示 -->
+                <div id="timerDisplayBox" class="timer-display-box">
+                    <div id="pomodoroPhaseBadge" class="pomodoro-badge" style="display:block;">🍅 1回目の作業 (25分)</div>
+                    <div id="timerClockText" class="timer-clock">25:00</div>
+                </div>
+
+                <div class="timer-btn-group">
+                    <button id="startTimerBtn" class="btn-primary timer-main-btn">▶ スタート</button>
+                    <button id="pauseTimerBtn" class="btn-secondary timer-sub-btn" style="display:none;">⏸ 一時停止</button>
+                    <button id="stopTimerBtn" class="btn-danger timer-sub-btn" style="display:none;">⏹ 終了・保存</button>
+                </div>
+            </div>
+
+            <!-- 2. 統計グラフ分析エリア -->
+            <div class="dashboard-card" style="margin-top:16px;">
+                <h2>📊 集中時間の統計記録</h2>
+                
+                <h3>📅 直近7日間の学習・作業時間 (分)</h3>
+                <div class="chart-canvas-box">
+                    <canvas id="weeklyFocusChart"></canvas>
+                </div>
+
+                <h3 style="margin-top:20px;">🥧 項目別 内訳割合 (累積)</h3>
+                <div class="chart-canvas-box" style="max-width:300px; margin:0 auto;">
+                    <canvas id="categoryFocusChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- モーダル: 時間割編集・メモ -->
+    <!-- モーダル: 時間割編集・出欠管理・メモ -->
     <div id="modalOverlay" class="modal-overlay">
         <div class="modal-content">
             <span id="modalCloseBtn" class="modal-close-btn">&times;</span>
@@ -282,9 +374,33 @@
                 <p id="modalSubjectMeta" class="modal-meta"></p>
                 <p id="modalTeacherEmail" class="modal-email"></p>
 
-                <div class="modal-actions">
-                    <button id="modalEditBtn" class="btn-secondary">✏️ 科目を編集する</button>
+                <!-- 出欠状況サマリー -->
+                <div class="attendance-summary-box">
+                    <div class="attendance-count-badge badge-present">出席: <span id="countPresent">0</span></div>
+                    <div class="attendance-count-badge badge-late">遅刻: <span id="countLate">0</span></div>
+                    <div class="attendance-count-badge badge-absent">欠席: <span id="countAbsent">0</span></div>
+                    <div class="attendance-count-badge badge-cancel">休講: <span id="countCancel">0</span></div>
                 </div>
+
+                <div class="modal-actions">
+                    <button id="modalEditBtn" class="btn-secondary">✏ 科目情報を編集</button>
+                </div>
+
+                <hr class="modal-hr">
+
+                <!-- 手動で出欠を追加・編集 -->
+                <h3>🏫 出欠の記録・編集</h3>
+                <div class="attendance-add-group">
+                    <input type="date" id="manualAttDateInput" style="padding:6px; border-radius:6px; border:1px solid #ccc; font-size:0.85rem;">
+                    <select id="manualAttStatusSelect" style="padding:6px; border-radius:6px; border:1px solid #ccc; font-size:0.85rem;">
+                        <option value="出席">出席</option>
+                        <option value="遅刻">遅刻</option>
+                        <option value="欠席">欠席</option>
+                        <option value="休講">休講</option>
+                    </select>
+                    <button id="saveManualAttBtn" class="btn-primary" style="font-size:0.8rem; padding:6px 10px;">保存</button>
+                </div>
+                <ul id="attendanceHistoryList" class="memo-list" style="margin-top:8px;"></ul>
 
                 <hr class="modal-hr">
 

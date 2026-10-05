@@ -30,6 +30,7 @@ const dayNames = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日
 let timetableData = JSON.parse(localStorage.getItem('myTimetable')) || {};
 let tasks = JSON.parse(localStorage.getItem('myTasks')) || [];
 let customCategories = JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"];
+let customFocusSubjects = JSON.parse(localStorage.getItem('myCustomFocusSubjects')) || [];
 let dailySchedules = JSON.parse(localStorage.getItem('myDailySchedules')) || {};
 let savedSchedulePresets = JSON.parse(localStorage.getItem('mySchedulePresets')) || [
     { title: "睡眠", color: "#A9CCE3" },
@@ -37,6 +38,7 @@ let savedSchedulePresets = JSON.parse(localStorage.getItem('mySchedulePresets'))
     { title: "読書", color: "#A9DFBF" },
     { title: "風呂", color: "#F5B7B1" }
 ];
+let focusLogs = JSON.parse(localStorage.getItem('myFocusLogs')) || [];
 
 let activeCategoryFilter = "すべて";
 let editingTaskId = null;
@@ -49,18 +51,30 @@ let currentUser = null;
 
 let selectedSchedDate = new Date().toISOString().split('T')[0];
 
-// サイドバー＆ナビゲーション要素
+// タイマー状態変数
+let timerInterval = null;
+let timerSeconds = 25 * 60;
+let isTimerRunning = false;
+let timerMode = 'pomodoro'; // 'pomodoro', 'countdown', 'stopwatch'
+let pomodoroPhase = 'work'; // 'work' (25分) or 'break' (5分)
+let pomodoroCycleCount = 1; // 🍅 何回目のポモドーロか
+let timerElapsedSeconds = 0;
+
+// グラフインスタンス保持
+let weeklyChartInstance = null;
+let categoryChartInstance = null;
+
+// 要素参照
 const sidebar = document.getElementById('sidebar');
 const sidebarOverlay = document.getElementById('sidebarOverlay');
 const openSidebarBtn = document.getElementById('openSidebarBtn');
 const closeSidebarBtn = document.getElementById('closeSidebarBtn');
 
-// ダッシュボード要素
 const currentScheduleText = document.getElementById('currentScheduleText');
 const nextScheduleText = document.getElementById('nextScheduleText');
 const dueThisWeekTaskList = document.getElementById('dueThisWeekTaskList');
+const todayAttendanceContainer = document.getElementById('todayAttendanceContainer');
 
-// スケジュール要素
 const scheduleDateInput = document.getElementById('scheduleDateInput');
 const prevDateBtn = document.getElementById('prevDateBtn');
 const nextDateBtn = document.getElementById('nextDateBtn');
@@ -90,7 +104,6 @@ const applySingleDayBtn = document.getElementById('applySingleDayBtn');
 const applyAllRepeatBtn = document.getElementById('applyAllRepeatBtn');
 const cancelRepeatOptionBtn = document.getElementById('cancelRepeatOptionBtn');
 
-// その他の既存要素
 const timetableBody = document.getElementById('timetableBody');
 const modalOverlay = document.getElementById('modalOverlay');
 const modalCloseBtn = document.getElementById('modalCloseBtn');
@@ -111,6 +124,15 @@ const modalRoomInput = document.getElementById('modalRoomInput');
 const saveSubjectBtn = document.getElementById('saveSubjectBtn');
 const deleteSubjectBtn = document.getElementById('deleteSubjectBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
+
+const countPresent = document.getElementById('countPresent');
+const countLate = document.getElementById('countLate');
+const countAbsent = document.getElementById('countAbsent');
+const countCancel = document.getElementById('countCancel');
+const manualAttDateInput = document.getElementById('manualAttDateInput');
+const manualAttStatusSelect = document.getElementById('manualAttStatusSelect');
+const saveManualAttBtn = document.getElementById('saveManualAttBtn');
+const attendanceHistoryList = document.getElementById('attendanceHistoryList');
 
 const listManageModalOverlay = document.getElementById('listManageModalOverlay');
 const manageListBtn = document.getElementById('manageListBtn');
@@ -140,9 +162,26 @@ const messageArea = document.getElementById('messageArea');
 const taskList = document.getElementById('taskList');
 const listTabContainer = document.getElementById('listTabContainer');
 
+// 集中タイマー用要素
+const focusTargetSelect = document.getElementById('focusTargetSelect');
+const customSubjectInputArea = document.getElementById('customSubjectInputArea');
+const customSubjectInput = document.getElementById('customSubjectInput');
+const saveCustomSubjectBtn = document.getElementById('saveCustomSubjectBtn');
+const pomodoroInfoArea = document.getElementById('pomodoroInfoArea');
+const countdownSettingsArea = document.getElementById('countdownSettingsArea');
+const countdownCustomMinutes = document.getElementById('countdownCustomMinutes');
+const pomodoroPhaseBadge = document.getElementById('pomodoroPhaseBadge');
+const timerDisplayBox = document.getElementById('timerDisplayBox');
+const timerClockText = document.getElementById('timerClockText');
+const startTimerBtn = document.getElementById('startTimerBtn');
+const pauseTimerBtn = document.getElementById('pauseTimerBtn');
+const stopTimerBtn = document.getElementById('stopTimerBtn');
+
 // アプリ初期化
 window.addEventListener('DOMContentLoaded', () => {
     scheduleDateInput.value = selectedSchedDate;
+    manualAttDateInput.value = selectedSchedDate;
+    
     setupSidebarEvents();
     init30ColorPicker();
     initModal15ColorPicker();
@@ -157,6 +196,7 @@ window.addEventListener('DOMContentLoaded', () => {
     updateCategorySelectOptions();
     renderTasks();
     setupAuthListeners();
+    setupFocusTimerEvents();
 
     scheduleCanvas.addEventListener('click', handleCanvasClick);
     updateDashboard();
@@ -197,6 +237,10 @@ function setupSidebarEvents() {
 
             if (targetId === 'viewHome') updateDashboard();
             if (targetId === 'viewSchedule') updateScheduleView();
+            if (targetId === 'viewFocus') {
+                updateFocusTargetOptions();
+                renderFocusCharts();
+            }
 
             closeSidebar();
         });
@@ -239,6 +283,85 @@ function updateDashboard() {
     }
 
     renderDueThisWeekTasks();
+    renderTodayAttendanceCard();
+}
+
+// 🏫 ダッシュボード用: 本日の授業の出欠クイック登録カード
+function renderTodayAttendanceCard() {
+    todayAttendanceContainer.innerHTML = '';
+    const now = new Date();
+    const dayStrMap = ["日", "月", "火", "水", "木", "金", "土"];
+    const todayChar = dayStrMap[now.getDay()];
+    const todayIsoStr = now.toISOString().split('T')[0];
+
+    if (!days.includes(todayChar)) {
+        todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:#888; margin:0;">本日は休校日（土日）です。</p>';
+        return;
+    }
+
+    const todayClasses = times.map(t => {
+        const key = `${todayChar}_${t.period}`;
+        const cellData = timetableData[key];
+        return cellData && cellData.subject ? { key, period: t.period, subject: cellData.subject, cellData } : null;
+    }).filter(Boolean);
+
+    if (todayClasses.length === 0) {
+        todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:#888; margin:0;">本日の時間割授業はありません。</p>';
+        return;
+    }
+
+    todayClasses.forEach(item => {
+        const history = item.cellData.attendance || {};
+        const currentStatus = history[todayIsoStr] || null;
+
+        const card = document.createElement('div');
+        card.className = 'today-att-card';
+
+        const info = document.createElement('div');
+        info.innerHTML = `<strong>${item.period}限: ${item.subject}</strong>`;
+
+        const btnsGroup = document.createElement('div');
+        btnsGroup.className = 'today-att-btns';
+
+        const statuses = [
+            { text: '出席', color: '#27ae60' },
+            { text: '遅刻', color: '#f39c12' },
+            { text: '欠席', color: '#e74c3c' },
+            { text: '休講', color: '#7f8c8d' }
+        ];
+
+        statuses.forEach(st => {
+            const btn = document.createElement('button');
+            btn.className = `today-att-btn ${currentStatus === st.text ? 'active' : ''}`;
+            btn.style.backgroundColor = currentStatus === st.text ? st.color : '#f0ece1';
+            btn.style.color = currentStatus === st.text ? '#ffffff' : '#555555';
+            btn.textContent = st.text;
+
+            btn.onclick = () => saveAttendanceStatus(item.key, todayIsoStr, st.text);
+            btnsGroup.appendChild(btn);
+        });
+
+        card.appendChild(info);
+        card.appendChild(btnsGroup);
+        todayAttendanceContainer.appendChild(card);
+    });
+}
+
+async function saveAttendanceStatus(cellKey, dateStr, statusStr) {
+    if (!timetableData[cellKey]) return;
+    if (!timetableData[cellKey].attendance) timetableData[cellKey].attendance = {};
+
+    if (timetableData[cellKey].attendance[dateStr] === statusStr) {
+        delete timetableData[cellKey].attendance[dateStr];
+    } else {
+        timetableData[cellKey].attendance[dateStr] = statusStr;
+    }
+
+    localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    await saveUserDataToCloud();
+    renderTodayAttendanceCard();
+    if (activeCellKey === cellKey) updateAttendanceModalView();
+    if (messageArea) messageArea.textContent = '💾 出欠状況を保存しました！';
 }
 
 function renderDueThisWeekTasks() {
@@ -301,7 +424,6 @@ function init30ColorPicker() {
     });
 }
 
-// 科目用 厳選15色カラーパレットの生成
 function initModal15ColorPicker() {
     const grid = document.getElementById('modal15ColorPicker');
     if (!grid) return;
@@ -606,7 +728,6 @@ function startEditingSchedItem(item) {
     window.scrollTo({ top: scheduleFormContent.offsetTop - 60, behavior: 'smooth' });
 }
 
-// 🎨 ハイブリッド描画: キャンバスには扇形＆目盛り線のみ / テキストは100%HTMLレイヤー描画
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -625,13 +746,11 @@ function draw24HourChart(items) {
 
     ctx.clearRect(0, 0, baseWidth, baseHeight);
 
-    // 背景円
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
     ctx.fillStyle = '#f0ece1';
     ctx.fill();
 
-    // 扇形描画
     items.forEach(item => {
         const startAngle = (item.startMin / 1440) * Math.PI * 2 - Math.PI / 2;
         const endAngle = (item.endMin / 1440) * Math.PI * 2 - Math.PI / 2;
@@ -647,7 +766,6 @@ function draw24HourChart(items) {
         ctx.stroke();
     });
 
-    // 24時間目盛り線＆数値刻み描画
     for (let h = 0; h < 24; h += 3) {
         const angle = (h / 24) * Math.PI * 2 - Math.PI / 2;
         const lineX1 = centerX + Math.cos(angle) * (radius - 8);
@@ -671,7 +789,6 @@ function draw24HourChart(items) {
         ctx.fillText(`${h}`, textX, textY);
     }
 
-    // ドーナツ中央空白領域
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius * 0.4, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
@@ -681,12 +798,9 @@ function draw24HourChart(items) {
     ctx.stroke();
 
     ctx.restore();
-
-    // HTMLオーバーレイにテキストを配置 (画像の粗さゼロ・完全ベクトル描画)
     renderOverlayLabelsHTML(items, centerX, centerY, radius);
 }
 
-// HTMLラベル生成処理
 function renderOverlayLabelsHTML(items, centerX, centerY, radius) {
     scheduleOverlayLabels.innerHTML = '';
 
@@ -1007,8 +1121,10 @@ async function saveUserDataToCloud() {
         timetable: JSON.parse(localStorage.getItem('myTimetable')) || {},
         tasks: JSON.parse(localStorage.getItem('myTasks')) || [],
         categories: JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"],
+        customFocusSubjects: JSON.parse(localStorage.getItem('myCustomFocusSubjects')) || [],
         dailySchedules: JSON.parse(localStorage.getItem('myDailySchedules')) || {},
         schedulePresets: JSON.parse(localStorage.getItem('mySchedulePresets')) || [],
+        focusLogs: JSON.parse(localStorage.getItem('myFocusLogs')) || [],
         updatedAt: serverTimestamp()
     };
 
@@ -1033,14 +1149,18 @@ async function loadUserDataFromCloud(uid) {
             if (data.timetable) localStorage.setItem('myTimetable', JSON.stringify(data.timetable));
             if (data.tasks) localStorage.setItem('myTasks', JSON.stringify(data.tasks));
             if (data.categories) localStorage.setItem('myCategories', JSON.stringify(data.categories));
+            if (data.customFocusSubjects) localStorage.setItem('myCustomFocusSubjects', JSON.stringify(data.customFocusSubjects));
             if (data.dailySchedules) localStorage.setItem('myDailySchedules', JSON.stringify(data.dailySchedules));
             if (data.schedulePresets) localStorage.setItem('mySchedulePresets', JSON.stringify(data.schedulePresets));
+            if (data.focusLogs) localStorage.setItem('myFocusLogs', JSON.stringify(data.focusLogs));
 
             timetableData = data.timetable || {};
             tasks = data.tasks || [];
             customCategories = data.categories || ["未分類", "提出物", "買い物"];
+            customFocusSubjects = data.customFocusSubjects || [];
             dailySchedules = data.dailySchedules || {};
             savedSchedulePresets = data.schedulePresets || [];
+            focusLogs = data.focusLogs || [];
 
             checkAndResetClassTasks();
             renderPresetButtons();
@@ -1218,6 +1338,7 @@ function openCellModal(key, day, period) {
         if (cellData.email) modalTeacherEmail.innerHTML = `✉️ <a href="mailto:${cellData.email}">${cellData.email}</a>`;
         else modalTeacherEmail.textContent = '✉️ メールアドレス未登録';
 
+        updateAttendanceModalView();
         renderMemos(cellData.memos || []);
         modalDetailView.style.display = 'block';
         modalEditView.style.display = 'none';
@@ -1225,6 +1346,64 @@ function openCellModal(key, day, period) {
         showEditForm(day, period, '', pastel15ModalColors[0], '', '', '');
     }
     modalOverlay.style.display = 'flex';
+}
+
+function updateAttendanceModalView() {
+    const cellData = timetableData[activeCellKey];
+    if (!cellData) return;
+
+    const attendance = cellData.attendance || {};
+    let presentCount = 0, lateCount = 0, absentCount = 0, cancelCount = 0;
+
+    attendanceHistoryList.innerHTML = '';
+    const dateKeys = Object.keys(attendance).sort().reverse();
+
+    if (dateKeys.length === 0) {
+        attendanceHistoryList.innerHTML = '<li style="color:#aaa; border:none; background:none;">出欠の記録はありません</li>';
+    } else {
+        dateKeys.forEach(dateStr => {
+            const status = attendance[dateStr];
+            if (status === '出席') presentCount++;
+            if (status === '遅刻') lateCount++;
+            if (status === '欠席') absentCount++;
+            if (status === '休講') cancelCount++;
+
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div><strong>${dateStr}</strong>: <span class="badge-tag">${status}</span></div>
+            `;
+            const delBtn = document.createElement('button');
+            delBtn.className = 'memo-del-btn';
+            delBtn.textContent = '✖ 削除';
+            delBtn.onclick = () => deleteAttendanceRecord(dateStr);
+
+            li.appendChild(delBtn);
+            attendanceHistoryList.appendChild(li);
+        });
+    }
+
+    countPresent.textContent = presentCount;
+    countLate.textContent = lateCount;
+    countAbsent.textContent = absentCount;
+    countCancel.textContent = cancelCount;
+}
+
+saveManualAttBtn.onclick = async () => {
+    const dateStr = manualAttDateInput.value;
+    const statusStr = manualAttStatusSelect.value;
+    if (!dateStr || !activeCellKey) return;
+
+    await saveAttendanceStatus(activeCellKey, dateStr, statusStr);
+};
+
+async function deleteAttendanceRecord(dateStr) {
+    if (!activeCellKey || !timetableData[activeCellKey] || !timetableData[activeCellKey].attendance) return;
+    delete timetableData[activeCellKey].attendance[dateStr];
+
+    localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    await saveUserDataToCloud();
+    updateAttendanceModalView();
+    renderTodayAttendanceCard();
 }
 
 modalEditBtn.onclick = () => {
@@ -1267,7 +1446,7 @@ saveSubjectBtn.onclick = async () => {
 
     const currentCell = timetableData[activeCellKey] || {};
     timetableData[activeCellKey] = {
-        subject, color: selectedColor, teacher, email, room, memos: currentCell.memos || []
+        subject, color: selectedColor, teacher, email, room, memos: currentCell.memos || [], attendance: currentCell.attendance || {}
     };
 
     localStorage.setItem('myTimetable', JSON.stringify(timetableData));
@@ -1459,7 +1638,7 @@ function startEditingTask(id) {
     if (!task) return;
 
     editingTaskId = id;
-    taskFormHeading.textContent = '✏️ タスクの編集';
+    taskFormHeading.textContent = '✏ タスクの編集';
     toggleFormText.textContent = '✏️ タスクを編集（開いています）';
     addTaskBtn.textContent = '💾 変更を保存';
     cancelTaskEditBtn.style.display = 'block';
@@ -1726,5 +1905,317 @@ function renderTasks() {
         li.appendChild(headerRow);
         li.appendChild(memoArea);
         taskList.appendChild(li);
+    });
+}
+
+// ⏱️ 集中タイマー ＆ 記録集計機能
+function setupFocusTimerEvents() {
+    document.querySelectorAll('input[name="focusTimerMode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (isTimerRunning) pauseTimer();
+            timerMode = e.target.value;
+
+            if (timerMode === 'pomodoro') {
+                pomodoroInfoArea.style.display = 'block';
+                countdownSettingsArea.style.display = 'none';
+                pomodoroPhaseBadge.style.display = 'inline-block';
+                pomodoroPhase = 'work';
+                pomodoroCycleCount = 1;
+                pomodoroPhaseBadge.textContent = `🍅 1回目の作業 (25分)`;
+                pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
+                timerSeconds = 25 * 60;
+            } else if (timerMode === 'countdown') {
+                pomodoroInfoArea.style.display = 'none';
+                countdownSettingsArea.style.display = 'block';
+                pomodoroPhaseBadge.style.display = 'none';
+                const customMin = parseInt(countdownCustomMinutes.value) || 25;
+                timerSeconds = customMin * 60;
+            } else if (timerMode === 'stopwatch') {
+                pomodoroInfoArea.style.display = 'none';
+                countdownSettingsArea.style.display = 'none';
+                pomodoroPhaseBadge.style.display = 'none';
+                timerSeconds = 0;
+            }
+            updateTimerDisplay();
+        });
+    });
+
+    // ドロップダウンで「新しい科目を追加」を選んだ時の処理
+    focusTargetSelect.addEventListener('change', (e) => {
+        if (e.target.value === '__add_new__') {
+            customSubjectInputArea.style.display = 'flex';
+            customSubjectInput.focus();
+        } else {
+            customSubjectInputArea.style.display = 'none';
+        }
+    });
+
+    saveCustomSubjectBtn.onclick = async () => {
+        const val = customSubjectInput.value.trim();
+        if (!val) return;
+
+        if (!customFocusSubjects.includes(val)) {
+            customFocusSubjects.push(val);
+            localStorage.setItem('myCustomFocusSubjects', JSON.stringify(customFocusSubjects));
+            await saveUserDataToCloud();
+        }
+
+        customSubjectInput.value = '';
+        customSubjectInputArea.style.display = 'none';
+        updateFocusTargetOptions();
+        focusTargetSelect.value = `📚 科目: ${val}`;
+    };
+
+    // カウントダウン手動入力
+    countdownCustomMinutes.addEventListener('input', (e) => {
+        if (timerMode === 'countdown' && !isTimerRunning) {
+            const min = parseInt(e.target.value) || 1;
+            timerSeconds = min * 60;
+            updateTimerDisplay();
+        }
+    });
+
+    // 簡易設定ボタン
+    document.querySelectorAll('.preset-timer-btn').forEach(btn => {
+        btn.onclick = () => {
+            const min = parseInt(btn.getAttribute('data-min'));
+            countdownCustomMinutes.value = min;
+            if (timerMode === 'countdown' && !isTimerRunning) {
+                timerSeconds = min * 60;
+                updateTimerDisplay();
+            }
+        };
+    });
+
+    startTimerBtn.onclick = startTimer;
+    pauseTimerBtn.onclick = pauseTimer;
+    stopTimerBtn.onclick = stopTimerAndSave;
+}
+
+function updateFocusTargetOptions() {
+    focusTargetSelect.innerHTML = '<option value="全般">全般（指定なし）</option>';
+
+    // 時間割の科目を追加
+    const subjectList = [];
+    Object.values(timetableData).forEach(item => {
+        if (item && item.subject && !subjectList.includes(item.subject)) {
+            subjectList.push(item.subject);
+        }
+    });
+
+    subjectList.forEach(subj => {
+        const opt = document.createElement('option');
+        opt.value = `🏫 時間割: ${subj}`;
+        opt.textContent = `🏫 時間割: ${subj}`;
+        focusTargetSelect.appendChild(opt);
+    });
+
+    // ユーザー追加の自由科目を追加
+    customFocusSubjects.forEach(subj => {
+        const opt = document.createElement('option');
+        opt.value = `📚 科目: ${subj}`;
+        opt.textContent = `📚 科目: ${subj}`;
+        focusTargetSelect.appendChild(opt);
+    });
+
+    // 新規追加項目
+    const addNewOpt = document.createElement('option');
+    addNewOpt.value = '__add_new__';
+    addNewOpt.textContent = '➕ 新しい科目を自由追加...';
+    focusTargetSelect.appendChild(addNewOpt);
+
+    // やることタスクを追加
+    tasks.filter(t => !t.completed).forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = `📝 タスク: ${t.text}`;
+        opt.textContent = `📝 タスク: ${t.text}`;
+        focusTargetSelect.appendChild(opt);
+    });
+}
+
+function startTimer() {
+    if (isTimerRunning) return;
+    isTimerRunning = true;
+
+    startTimerBtn.style.display = 'none';
+    pauseTimerBtn.style.display = 'block';
+    stopTimerBtn.style.display = 'block';
+
+    timerInterval = setInterval(() => {
+        if (timerMode === 'pomodoro') {
+            if (timerSeconds > 0) {
+                timerSeconds--;
+                if (pomodoroPhase === 'work') timerElapsedSeconds++;
+                updateTimerDisplay();
+            } else {
+                // ポモドーロ フェーズ切り替え
+                if (pomodoroPhase === 'work') {
+                    alert(`🍅 ${pomodoroCycleCount}回目の作業（25分）が完了しました！5分間の休憩に入ります。`);
+                    pomodoroPhase = 'break';
+                    pomodoroPhaseBadge.textContent = `☕ ${pomodoroCycleCount}回目の休憩 (5分)`;
+                    pomodoroPhaseBadge.style.backgroundColor = '#27ae60';
+                    timerSeconds = 5 * 60;
+                } else {
+                    pomodoroCycleCount++;
+                    alert(`☕ 休憩が終了しました！ ${pomodoroCycleCount}回目の作業を開始します。`);
+                    pomodoroPhase = 'work';
+                    pomodoroPhaseBadge.textContent = `🍅 ${pomodoroCycleCount}回目の作業 (25分)`;
+                    pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
+                    timerSeconds = 25 * 60;
+                }
+                updateTimerDisplay();
+            }
+        } else if (timerMode === 'countdown') {
+            if (timerSeconds > 0) {
+                timerSeconds--;
+                timerElapsedSeconds++;
+                updateTimerDisplay();
+            } else {
+                pauseTimer();
+                alert('🎉 設定時間が終了しました！お疲れ様でした！');
+                stopTimerAndSave();
+            }
+        } else { // stopwatch
+            timerSeconds++;
+            timerElapsedSeconds++;
+            updateTimerDisplay();
+        }
+    }, 1000);
+}
+
+function pauseTimer() {
+    isTimerRunning = false;
+    clearInterval(timerInterval);
+    startTimerBtn.style.display = 'block';
+    startTimerBtn.textContent = '▶ 再開';
+    pauseTimerBtn.style.display = 'none';
+}
+
+async function stopTimerAndSave() {
+    pauseTimer();
+
+    const elapsedMinutes = Math.floor(timerElapsedSeconds / 60);
+    if (elapsedMinutes >= 1) {
+        const targetName = focusTargetSelect.value.replace('__add_new__', '全般');
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+
+        focusLogs.push({
+            id: Date.now(),
+            date: dateStr,
+            minutes: elapsedMinutes,
+            target: targetName
+        });
+
+        localStorage.setItem('myFocusLogs', JSON.stringify(focusLogs));
+        await saveUserDataToCloud();
+        if (messageArea) messageArea.textContent = `💾 ${elapsedMinutes}分間の集中記録を保存しました！`;
+    }
+
+    // リセット
+    timerElapsedSeconds = 0;
+    pomodoroCycleCount = 1;
+    startTimerBtn.textContent = '▶ スタート';
+    stopTimerBtn.style.display = 'none';
+
+    if (timerMode === 'pomodoro') {
+        pomodoroPhase = 'work';
+        pomodoroPhaseBadge.textContent = '🍅 1回目の作業 (25分)';
+        pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
+        timerSeconds = 25 * 60;
+    } else if (timerMode === 'countdown') {
+        const customMin = parseInt(countdownCustomMinutes.value) || 25;
+        timerSeconds = customMin * 60;
+    } else {
+        timerSeconds = 0;
+    }
+
+    updateTimerDisplay();
+    renderFocusCharts();
+}
+
+function updateTimerDisplay() {
+    const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+    const s = String(timerSeconds % 60).padStart(2, '0');
+    timerClockText.textContent = `${m}:${s}`;
+}
+
+// 📊 集中時間グラフのレンダリング (Chart.js)
+function renderFocusCharts() {
+    // 1. 直近7日間の学習時間 (棒グラフ)
+    const last7Days = [];
+    const minutesByDate = {};
+
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const monthDayStr = `${d.getMonth()+1}/${d.getDate()}`;
+        last7Days.push({ dateStr, monthDayStr });
+        minutesByDate[dateStr] = 0;
+    }
+
+    focusLogs.forEach(log => {
+        if (minutesByDate[log.date] !== undefined) {
+            minutesByDate[log.date] += log.minutes;
+        }
+    });
+
+    const weeklyLabels = last7Days.map(item => item.monthDayStr);
+    const weeklyData = last7Days.map(item => minutesByDate[item.dateStr]);
+
+    const ctxWeekly = document.getElementById('weeklyFocusChart').getContext('2d');
+    if (weeklyChartInstance) weeklyChartInstance.destroy();
+
+    weeklyChartInstance = new Chart(ctxWeekly, {
+        type: 'bar',
+        data: {
+            labels: weeklyLabels,
+            datasets: [{
+                label: '集中時間 (分)',
+                data: weeklyData,
+                backgroundColor: '#4a90e2',
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: '分' } }
+            }
+        }
+    });
+
+    // 2. 項目別 内訳割合 (円グラフ)
+    const categoryTotals = {};
+    focusLogs.forEach(log => {
+        const target = log.target || '全般';
+        categoryTotals[target] = (categoryTotals[target] || 0) + log.minutes;
+    });
+
+    const categoryLabels = Object.keys(categoryTotals);
+    const categoryData = Object.values(categoryTotals);
+
+    const ctxCategory = document.getElementById('categoryFocusChart').getContext('2d');
+    if (categoryChartInstance) categoryChartInstance.destroy();
+
+    if (categoryLabels.length === 0) {
+        categoryLabels.push('まだ記録がありません');
+        categoryData.push(1);
+    }
+
+    categoryChartInstance = new Chart(ctxCategory, {
+        type: 'pie',
+        data: {
+            labels: categoryLabels,
+            datasets: [{
+                data: categoryData,
+                backgroundColor: pastel15ModalColors
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } }
+        }
     });
 }
