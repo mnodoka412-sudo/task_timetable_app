@@ -148,14 +148,16 @@
             <p id="scheduleDayOfWeekText" class="day-of-week-text"></p>
 
             <!-- 円グラフ表示エリア -->
-            <div class="chart-container">
-                <div class="chart-wrapper">
-                    <canvas id="scheduleCanvas" style="width:380px; height:380px;"></canvas>
-                    <div id="scheduleCenterTitle" class="chart-center-title">24H Schedule</div>
-                    <div id="scheduleOverlayLabels" class="chart-overlay-labels"></div>
+            <div class="dashboard-card" style="padding: 12px 8px; overflow: hidden;">
+                <div class="chart-container">
+                    <div class="chart-wrapper">
+                        <canvas id="scheduleCanvas"></canvas>
+                        <div id="scheduleCenterTitle" class="chart-center-title">24H Schedule</div>
+                        <div id="scheduleOverlayLabels" class="chart-overlay-labels"></div>
+                    </div>
                 </div>
+                <p style="text-align: center; font-size: 0.78rem; color: #888; margin-top: 6px; margin-bottom: 0;">💡 グラフタップまたは右下の「＋」ボタンで予定を追加・編集できます</p>
             </div>
-            <p style="text-align: center; font-size: 0.78rem; color: #888; margin-top: -6px;">💡 グラフの扇形タップで編集、空欄タップでその時間に予定を追加できます</p>
 
             <div class="preset-schedule-section">
                 <div class="setting-label-text">⚡ よく使う・登録済みの予定から追加</div>
@@ -164,62 +166,13 @@
                 </div>
             </div>
 
-            <!-- 予定追加/編集フォーム -->
-            <div class="task-form-wrapper" style="margin-top: 16px;">
-                <button id="toggleScheduleFormBtn" class="task-form-toggle-btn">
-                    <span id="toggleScheduleText">➕ 予定を追加する</span>
-                    <span id="toggleScheduleIcon">▼</span>
-                </button>
-
-                <div id="scheduleFormContent" class="task-form-content" style="display: none;">
-                    <h2 id="schedFormHeading" style="margin-top:0;">➕ 予定の登録</h2>
-                    <div class="input-group">
-                        <input type="text" id="schedTitleInput" placeholder="予定名 (例: 睡眠, 仕事, 読書...)">
-                    </div>
-
-                    <div class="setting-card">
-                        <div class="setting-label-text">⏱ 時間設定モード</div>
-                        <div class="input-mode-selector">
-                            <label><input type="radio" name="timeInputMode" value="range" checked> 開始〜終了時刻</label>
-                            <label><input type="radio" name="timeInputMode" value="duration"> 開始時刻 ＋ 所要時間</label>
-                        </div>
-
-                        <div id="modeRangeArea" class="time-range-group" style="margin-top: 10px;">
-                            <label>開始: <input type="time" id="schedStartTime"></label>
-                            <label>終了: <input type="time" id="schedEndTime"></label>
-                        </div>
-
-                        <div id="modeDurationArea" class="time-range-group" style="display: none; margin-top: 10px; flex-wrap: wrap;">
-                            <label>開始: <input type="time" id="schedStartTimeDur"></label>
-                            <label>所要時間: 
-                                <select id="schedDurationHours" style="padding:4px; border-radius:4px; border:1px solid #ccc;"></select> 時間
-                                <select id="schedDurationMinutes" style="padding:4px; border-radius:4px; border:1px solid #ccc;"></select> 分
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="setting-card">
-                        <div class="setting-label-text">🎨 テーマカラー (全30色)</div>
-                        <div class="color-picker-grid" id="schedColorPicker"></div>
-                    </div>
-
-                    <div class="setting-card">
-                        <div class="setting-label-text">🔄 繰り返し設定</div>
-                        <select id="schedRepeatType">
-                            <option value="none">繰り返しなし (この日のみ)</option>
-                            <option value="weekly">毎週同じ曜日に繰り返す</option>
-                        </select>
-                    </div>
-
-                    <button id="saveSchedBtn" class="btn-primary" style="width:100%; margin-top:10px;">💾 予定を保存</button>
-                    <button id="cancelSchedEditBtn" class="btn-secondary" style="display: none; width: 100%; margin-top: 6px;">キャンセル</button>
-                </div>
-            </div>
-
             <div class="section">
                 <h2>📋 予定一覧</h2>
                 <ul id="scheduleList" class="memo-list"></ul>
             </div>
+
+            <!-- 画面右下のフローティング「＋」ボタン -->
+            <button id="addSchedFabBtn" class="fab-btn" title="予定を追加">＋</button>
         </div>
 
         <!-- ==================== 2. 時間割画面 ==================== -->
@@ -402,6 +355,54 @@
                     <canvas id="categoryFocusChart"></canvas>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- モーダル: 1日スケジュール 予定追加/編集モーダル -->
+    <div id="schedModalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <span id="schedModalCloseBtn" class="modal-close-btn">&times;</span>
+            <h2 id="schedFormHeading" style="margin-top:0;">➕ 予定の登録</h2>
+            <div class="input-group">
+                <input type="text" id="schedTitleInput" placeholder="予定名 (例: 睡眠, 仕事, 読書...)">
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-label-text">⏱ 時間設定モード</div>
+                <div class="input-mode-selector">
+                    <label><input type="radio" name="timeInputMode" value="range" checked> 開始〜終了時刻</label>
+                    <label><input type="radio" name="timeInputMode" value="duration"> 開始時刻 ＋ 所要時間</label>
+                </div>
+
+                <div id="modeRangeArea" class="time-range-group" style="margin-top: 10px;">
+                    <label>開始: <input type="time" id="schedStartTime"></label>
+                    <label>終了: <input type="time" id="schedEndTime"></label>
+                </div>
+
+                <div id="modeDurationArea" class="time-range-group" style="display: none; margin-top: 10px; flex-wrap: wrap;">
+                    <label>開始: <input type="time" id="schedStartTimeDur"></label>
+                    <label>所要時間: 
+                        <select id="schedDurationHours" style="padding:4px; border-radius:4px; border:1px solid #ccc;"></select> 時間
+                        <select id="schedDurationMinutes" style="padding:4px; border-radius:4px; border:1px solid #ccc;"></select> 分
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-label-text">🎨 テーマカラー (全30色)</div>
+                <div class="color-picker-grid" id="schedColorPicker"></div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-label-text">🔄 繰り返し設定</div>
+                <select id="schedRepeatType">
+                    <option value="none">繰り返しなし (この日のみ)</option>
+                    <option value="weekly">毎週同じ曜日に繰り返す</option>
+                </select>
+            </div>
+
+            <button id="saveSchedBtn" class="btn-primary" style="width:100%; margin-top:12px;">💾 予定を保存</button>
+            <button id="cancelSchedEditBtn" class="btn-secondary" style="width: 100%; margin-top: 6px;">キャンセル</button>
         </div>
     </div>
 

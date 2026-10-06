@@ -260,6 +260,10 @@ h1 {
 .cute-day-cell.sun .cute-day-number { color: #d35242; }
 .cute-day-cell.sat .cute-day-number { color: #4369b2; }
 
+.cute-day-cell.today {
+    background-color: #e8f8f0;
+}
+
 .cute-day-cell.today .cute-day-number {
     background-color: #38322c;
     color: #ffffff !important;

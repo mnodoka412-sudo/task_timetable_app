@@ -121,10 +121,11 @@ const scheduleDayOfWeekText = document.getElementById('scheduleDayOfWeekText');
 const scheduleCanvas = document.getElementById('scheduleCanvas');
 const scheduleOverlayLabels = document.getElementById('scheduleOverlayLabels');
 const presetScheduleButtons = document.getElementById('presetScheduleButtons');
-const toggleScheduleFormBtn = document.getElementById('toggleScheduleFormBtn');
-const scheduleFormContent = document.getElementById('scheduleFormContent');
-const toggleScheduleText = document.getElementById('toggleScheduleText');
-const toggleScheduleIcon = document.getElementById('toggleScheduleIcon');
+
+// 予定追加/編集モーダル＆FAB要素
+const addSchedFabBtn = document.getElementById('addSchedFabBtn');
+const schedModalOverlay = document.getElementById('schedModalOverlay');
+const schedModalCloseBtn = document.getElementById('schedModalCloseBtn');
 const schedFormHeading = document.getElementById('schedFormHeading');
 const schedTitleInput = document.getElementById('schedTitleInput');
 const schedStartTime = document.getElementById('schedStartTime');
@@ -245,6 +246,7 @@ window.addEventListener('DOMContentLoaded', () => {
     renderCuteCalendar(currentViewYear, currentViewMonth);
 
     scheduleCanvas.addEventListener('click', handleCanvasClick);
+    setupSchedModalEvents();
     updateDashboard();
 
     if ('serviceWorker' in navigator) {
@@ -781,7 +783,7 @@ function renderPresetButtons() {
                 }
             });
 
-            openSchedForm();
+            openSchedModal();
             schedStartTime.focus();
         };
 
@@ -828,39 +830,48 @@ nextDateBtn.addEventListener('click', () => {
     updateScheduleView();
 });
 
-toggleScheduleFormBtn.addEventListener('click', () => {
-    if (scheduleFormContent.style.display === 'none') {
-        openSchedForm();
-    } else {
-        closeSchedForm();
+function setupSchedModalEvents() {
+    if (addSchedFabBtn) {
+        addSchedFabBtn.onclick = () => {
+            resetSchedForm();
+            openSchedModal();
+        };
     }
-});
 
-function openSchedForm() {
-    scheduleFormContent.style.display = 'block';
-    toggleScheduleIcon.textContent = '▲';
+    if (schedModalCloseBtn) {
+        schedModalCloseBtn.onclick = closeSchedModal;
+    }
+
+    if (schedModalOverlay) {
+        schedModalOverlay.onclick = (e) => {
+            if (e.target === schedModalOverlay) closeSchedModal();
+        };
+    }
+
+    if (cancelSchedEditBtn) {
+        cancelSchedEditBtn.onclick = closeSchedModal;
+    }
 }
 
-function closeSchedForm() {
-    scheduleFormContent.style.display = 'none';
-    toggleScheduleIcon.textContent = '▼';
+function openSchedModal() {
+    schedModalOverlay.style.display = 'flex';
+}
+
+function closeSchedModal() {
+    schedModalOverlay.style.display = 'none';
     resetSchedForm();
 }
 
 function resetSchedForm() {
     editingSchedItemId = null;
     schedFormHeading.textContent = '➕ 予定の登録';
-    toggleScheduleText.textContent = '➕ 予定を追加する';
     saveSchedBtn.textContent = '💾 予定を保存';
-    cancelSchedEditBtn.style.display = 'none';
 
     schedTitleInput.value = '';
     schedStartTime.value = '';
     schedEndTime.value = '';
     schedStartTimeDur.value = '';
 }
-
-cancelSchedEditBtn.onclick = closeSchedForm;
 
 function updateScheduleView() {
     const d = new Date(selectedSchedDate);
@@ -950,7 +961,8 @@ function handleCanvasClick(e) {
     const y = e.clientY - rect.top - (cssHeight / 2);
 
     const radius = Math.sqrt(x * x + y * y);
-    const chartRadius = cssWidth * (160 / 380);
+    // グラフ半径 (142/320)
+    const chartRadius = cssWidth * (142 / 320);
 
     if (radius < chartRadius * 0.4 || radius > chartRadius) return;
 
@@ -976,7 +988,7 @@ function handleCanvasClick(e) {
         schedEndTime.value = minToTimeStr(nextStart);
         schedStartTimeDur.value = minToTimeStr(clickedMin);
 
-        openSchedForm();
+        openSchedModal();
         schedTitleInput.focus();
     }
 }
@@ -984,9 +996,7 @@ function handleCanvasClick(e) {
 function startEditingSchedItem(item) {
     editingSchedItemId = item.id;
     schedFormHeading.textContent = '✏️ 予定の編集';
-    toggleScheduleText.textContent = '✏️ 予定を編集（開いています）';
     saveSchedBtn.textContent = '💾 変更を保存';
-    cancelSchedEditBtn.style.display = 'block';
 
     schedTitleInput.value = item.title.replace(/^🏫\s*/, '');
     schedStartTime.value = minToTimeStr(item.startMin);
@@ -1002,15 +1012,15 @@ function startEditingSchedItem(item) {
         }
     });
 
-    openSchedForm();
-    window.scrollTo({ top: scheduleFormContent.offsetTop - 60, behavior: 'smooth' });
+    openSchedModal();
 }
 
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const baseWidth = 380;
-    const baseHeight = 380;
+    // 基準描画領域（余白を最小化して円を最大化）
+    const baseWidth = 320;
+    const baseHeight = 320;
 
     scheduleCanvas.width = baseWidth * dpr;
     scheduleCanvas.height = baseHeight * dpr;
@@ -1020,7 +1030,8 @@ function draw24HourChart(items) {
 
     const centerX = baseWidth / 2;
     const centerY = baseHeight / 2;
-    const radius = 160;
+    // 半径をギリギリ（142px）まで拡大し、カード枠いっぱいに表示
+    const radius = 142;
 
     ctx.clearRect(0, 0, baseWidth, baseHeight);
 
@@ -1046,8 +1057,8 @@ function draw24HourChart(items) {
 
     for (let h = 0; h < 24; h += 3) {
         const angle = (h / 24) * Math.PI * 2 - Math.PI / 2;
-        const lineX1 = centerX + Math.cos(angle) * (radius - 8);
-        const lineY1 = centerY + Math.sin(angle) * (radius - 8);
+        const lineX1 = centerX + Math.cos(angle) * (radius - 6);
+        const lineY1 = centerY + Math.sin(angle) * (radius - 6);
         const lineX2 = centerX + Math.cos(angle) * radius;
         const lineY2 = centerY + Math.sin(angle) * radius;
 
@@ -1055,12 +1066,13 @@ function draw24HourChart(items) {
         ctx.moveTo(lineX1, lineY1);
         ctx.lineTo(lineX2, lineY2);
         ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        const textX = centerX + Math.cos(angle) * (radius + 15);
-        const textY = centerY + Math.sin(angle) * (radius + 15);
-        ctx.font = 'bold 11px sans-serif';
+        // 時刻表示文字を小さく（9px）し、外周すぐ内側・枠ギリギリに配置
+        const textX = centerX + Math.cos(angle) * (radius + 10);
+        const textY = centerY + Math.sin(angle) * (radius + 10);
+        ctx.font = 'bold 9px sans-serif';
         ctx.fillStyle = '#666';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -1245,7 +1257,7 @@ saveSchedBtn.addEventListener('click', async () => {
     localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
     await saveUserDataToCloud();
 
-    closeSchedForm();
+    closeSchedModal();
     updateScheduleView();
     renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
@@ -1643,7 +1655,7 @@ function openCellModal(key, day, period) {
         modalSubjectTitle.textContent = cellData.subject;
         modalSubjectMeta.textContent = `${day}曜 ${period}限 | 👤 ${cellData.teacher || '教員未登録'} | 🏫 ${cellData.room || '教室未登録'}`;
         if (cellData.email) modalTeacherEmail.innerHTML = `✉️ <a href="mailto:${cellData.email}">${cellData.email}</a>`;
-        else modalTeacherEmail.textContent = '✉️ メールアドレス未登録';
+        else modalTeacherEmail.textContent = '✉️️ メールアドレス未登録';
 
         updateAttendanceModalView();
         renderMemos(cellData.memos || []);
