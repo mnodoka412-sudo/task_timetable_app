@@ -49,11 +49,18 @@ let selectedColor = pastel15ModalColors[0];
 let schedSelectedColor = pastel30Colors[0];
 let currentUser = null;
 
-let selectedSchedDate = new Date().toISOString().split('T')[0];
+// 今日の現在日付を取得
+function getTodayIsoString() {
+    return new Date().toISOString().split('T')[0];
+}
 
-// タイマー状態変数
+let selectedSchedDate = getTodayIsoString();
+
+// タイマー状態変数（バックグラウンド完全同期対応）
 let timerInterval = null;
 let timerSeconds = 25 * 60;
+let initialTargetSeconds = 25 * 60; // 開始時のターゲット秒数
+let timerStartTime = null; // スタート時の現在時刻 (ミリ秒)
 let isTimerRunning = false;
 let timerMode = 'pomodoro'; // 'pomodoro', 'countdown', 'stopwatch'
 let pomodoroPhase = 'work'; // 'work' (25分) or 'break' (5分)
@@ -179,6 +186,8 @@ const stopTimerBtn = document.getElementById('stopTimerBtn');
 
 // アプリ初期化
 window.addEventListener('DOMContentLoaded', () => {
+    // 起動時に現在日付にセット
+    selectedSchedDate = getTodayIsoString();
     scheduleDateInput.value = selectedSchedDate;
     manualAttDateInput.value = selectedSchedDate;
     
@@ -235,8 +244,13 @@ function setupSidebarEvents() {
             const targetSec = document.getElementById(targetId);
             if (targetSec) targetSec.classList.add('active');
 
+            // 画面切替時に日付を最新化
             if (targetId === 'viewHome') updateDashboard();
-            if (targetId === 'viewSchedule') updateScheduleView();
+            if (targetId === 'viewSchedule') {
+                selectedSchedDate = getTodayIsoString();
+                scheduleDateInput.value = selectedSchedDate;
+                updateScheduleView();
+            }
             if (targetId === 'viewFocus') {
                 updateFocusTargetOptions();
                 renderFocusCharts();
@@ -253,8 +267,8 @@ function closeSidebar() {
 }
 
 function updateDashboard() {
+    const todayStr = getTodayIsoString();
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
     const currentMin = now.getHours() * 60 + now.getMinutes();
 
     const todayItems = getScheduleForDate(todayStr).sort((a, b) => a.startMin - b.startMin);
@@ -292,7 +306,7 @@ function renderTodayAttendanceCard() {
     const now = new Date();
     const dayStrMap = ["日", "月", "火", "水", "木", "金", "土"];
     const todayChar = dayStrMap[now.getDay()];
-    const todayIsoStr = now.toISOString().split('T')[0];
+    const todayIsoStr = getTodayIsoString();
 
     if (!days.includes(todayChar)) {
         todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:#888; margin:0;">本日は休校日（土日）です。</p>';
@@ -1032,7 +1046,7 @@ async function executeDeleteSchedule(singleDayOnly) {
 function checkAndResetClassTasks() {
     if (!Array.isArray(tasks)) return;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayIsoString();
     let isUpdated = false;
 
     tasks = tasks.map(task => {
@@ -1130,7 +1144,7 @@ async function saveUserDataToCloud() {
 
     try {
         await setDoc(doc(db, 'users', currentUser.uid), dataToSave, { merge: true });
-        console.log("☁️ クラウドへ自動バックアップ完了");
+        console.log("☁️️ クラウドへ自動バックアップ完了");
     } catch (error) {
         console.error("クラウドバックアップエラー:", error);
     }
@@ -1908,7 +1922,7 @@ function renderTasks() {
     });
 }
 
-// ⏱️ 集中タイマー ＆ 記録集計機能
+// ⏱️ 集中タイマー ＆ バックグラウンド正確同期機能
 function setupFocusTimerEvents() {
     document.querySelectorAll('input[name="focusTimerMode"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -1924,12 +1938,14 @@ function setupFocusTimerEvents() {
                 pomodoroPhaseBadge.textContent = `🍅 1回目の作業 (25分)`;
                 pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
                 timerSeconds = 25 * 60;
+                initialTargetSeconds = 25 * 60;
             } else if (timerMode === 'countdown') {
                 pomodoroInfoArea.style.display = 'none';
                 countdownSettingsArea.style.display = 'block';
                 pomodoroPhaseBadge.style.display = 'none';
                 const customMin = parseInt(countdownCustomMinutes.value) || 25;
                 timerSeconds = customMin * 60;
+                initialTargetSeconds = customMin * 60;
             } else if (timerMode === 'stopwatch') {
                 pomodoroInfoArea.style.display = 'none';
                 countdownSettingsArea.style.display = 'none';
@@ -1940,7 +1956,6 @@ function setupFocusTimerEvents() {
         });
     });
 
-    // ドロップダウンで「新しい科目を追加」を選んだ時の処理
     focusTargetSelect.addEventListener('change', (e) => {
         if (e.target.value === '__add_new__') {
             customSubjectInputArea.style.display = 'flex';
@@ -1966,22 +1981,22 @@ function setupFocusTimerEvents() {
         focusTargetSelect.value = `📚 科目: ${val}`;
     };
 
-    // カウントダウン手動入力
     countdownCustomMinutes.addEventListener('input', (e) => {
         if (timerMode === 'countdown' && !isTimerRunning) {
             const min = parseInt(e.target.value) || 1;
             timerSeconds = min * 60;
+            initialTargetSeconds = min * 60;
             updateTimerDisplay();
         }
     });
 
-    // 簡易設定ボタン
     document.querySelectorAll('.preset-timer-btn').forEach(btn => {
         btn.onclick = () => {
             const min = parseInt(btn.getAttribute('data-min'));
             countdownCustomMinutes.value = min;
             if (timerMode === 'countdown' && !isTimerRunning) {
                 timerSeconds = min * 60;
+                initialTargetSeconds = min * 60;
                 updateTimerDisplay();
             }
         };
@@ -1990,12 +2005,18 @@ function setupFocusTimerEvents() {
     startTimerBtn.onclick = startTimer;
     pauseTimerBtn.onclick = pauseTimer;
     stopTimerBtn.onclick = stopTimerAndSave;
+
+    // タブ復帰（バックグラウンドから戻った時）にズレを補正
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && isTimerRunning) {
+            syncTimerWithRealTime();
+        }
+    });
 }
 
 function updateFocusTargetOptions() {
     focusTargetSelect.innerHTML = '<option value="全般">全般（指定なし）</option>';
 
-    // 時間割の科目を追加
     const subjectList = [];
     Object.values(timetableData).forEach(item => {
         if (item && item.subject && !subjectList.includes(item.subject)) {
@@ -2010,7 +2031,6 @@ function updateFocusTargetOptions() {
         focusTargetSelect.appendChild(opt);
     });
 
-    // ユーザー追加の自由科目を追加
     customFocusSubjects.forEach(subj => {
         const opt = document.createElement('option');
         opt.value = `📚 科目: ${subj}`;
@@ -2018,13 +2038,11 @@ function updateFocusTargetOptions() {
         focusTargetSelect.appendChild(opt);
     });
 
-    // 新規追加項目
     const addNewOpt = document.createElement('option');
     addNewOpt.value = '__add_new__';
     addNewOpt.textContent = '➕ 新しい科目を自由追加...';
     focusTargetSelect.appendChild(addNewOpt);
 
-    // やることタスクを追加
     tasks.filter(t => !t.completed).forEach(t => {
         const opt = document.createElement('option');
         opt.value = `📝 タスク: ${t.text}`;
@@ -2036,51 +2054,72 @@ function updateFocusTargetOptions() {
 function startTimer() {
     if (isTimerRunning) return;
     isTimerRunning = true;
+    timerStartTime = Date.now() - (timerElapsedSeconds * 1000);
 
     startTimerBtn.style.display = 'none';
     pauseTimerBtn.style.display = 'block';
     stopTimerBtn.style.display = 'block';
 
-    timerInterval = setInterval(() => {
-        if (timerMode === 'pomodoro') {
-            if (timerSeconds > 0) {
-                timerSeconds--;
-                if (pomodoroPhase === 'work') timerElapsedSeconds++;
-                updateTimerDisplay();
+    timerInterval = setInterval(tickTimer, 1000);
+}
+
+function tickTimer() {
+    syncTimerWithRealTime();
+}
+
+// タイムスタンプ基準で実際の経過時間を正確に動かす関数
+function syncTimerWithRealTime() {
+    if (!isTimerRunning) return;
+
+    const now = Date.now();
+    const actualElapsedSec = Math.floor((now - timerStartTime) / 1000);
+    
+    if (timerMode === 'pomodoro') {
+        const targetSec = (pomodoroPhase === 'work') ? 25 * 60 : 5 * 60;
+        const remaining = targetSec - actualElapsedSec;
+
+        if (remaining > 0) {
+            timerSeconds = remaining;
+            if (pomodoroPhase === 'work') timerElapsedSeconds = actualElapsedSec;
+            updateTimerDisplay();
+        } else {
+            // フェーズ完了処理
+            if (pomodoroPhase === 'work') {
+                alert(`🍅 ${pomodoroCycleCount}回目の作業（25分）が完了しました！5分間の休憩に入ります。`);
+                pomodoroPhase = 'break';
+                pomodoroPhaseBadge.textContent = `☕ ${pomodoroCycleCount}回目の休憩 (5分)`;
+                pomodoroPhaseBadge.style.backgroundColor = '#27ae60';
+                timerSeconds = 5 * 60;
             } else {
-                // ポモドーロ フェーズ切り替え
-                if (pomodoroPhase === 'work') {
-                    alert(`🍅 ${pomodoroCycleCount}回目の作業（25分）が完了しました！5分間の休憩に入ります。`);
-                    pomodoroPhase = 'break';
-                    pomodoroPhaseBadge.textContent = `☕ ${pomodoroCycleCount}回目の休憩 (5分)`;
-                    pomodoroPhaseBadge.style.backgroundColor = '#27ae60';
-                    timerSeconds = 5 * 60;
-                } else {
-                    pomodoroCycleCount++;
-                    alert(`☕ 休憩が終了しました！ ${pomodoroCycleCount}回目の作業を開始します。`);
-                    pomodoroPhase = 'work';
-                    pomodoroPhaseBadge.textContent = `🍅 ${pomodoroCycleCount}回目の作業 (25分)`;
-                    pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
-                    timerSeconds = 25 * 60;
-                }
-                updateTimerDisplay();
+                pomodoroCycleCount++;
+                alert(`☕ 休憩が終了しました！ ${pomodoroCycleCount}回目の作業を開始します。`);
+                pomodoroPhase = 'work';
+                pomodoroPhaseBadge.textContent = `🍅 ${pomodoroCycleCount}回目の作業 (25分)`;
+                pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
+                timerSeconds = 25 * 60;
             }
-        } else if (timerMode === 'countdown') {
-            if (timerSeconds > 0) {
-                timerSeconds--;
-                timerElapsedSeconds++;
-                updateTimerDisplay();
-            } else {
-                pauseTimer();
-                alert('🎉 設定時間が終了しました！お疲れ様でした！');
-                stopTimerAndSave();
-            }
-        } else { // stopwatch
-            timerSeconds++;
-            timerElapsedSeconds++;
+            timerStartTime = Date.now();
             updateTimerDisplay();
         }
-    }, 1000);
+    } else if (timerMode === 'countdown') {
+        const remaining = initialTargetSeconds - actualElapsedSec;
+        if (remaining > 0) {
+            timerSeconds = remaining;
+            timerElapsedSeconds = actualElapsedSec;
+            updateTimerDisplay();
+        } else {
+            timerSeconds = 0;
+            timerElapsedSeconds = initialTargetSeconds;
+            updateTimerDisplay();
+            pauseTimer();
+            alert('🎉 設定時間が終了しました！お疲れ様でした！');
+            stopTimerAndSave();
+        }
+    } else { // stopwatch
+        timerSeconds = actualElapsedSec;
+        timerElapsedSeconds = actualElapsedSec;
+        updateTimerDisplay();
+    }
 }
 
 function pauseTimer() {
@@ -2097,8 +2136,7 @@ async function stopTimerAndSave() {
     const elapsedMinutes = Math.floor(timerElapsedSeconds / 60);
     if (elapsedMinutes >= 1) {
         const targetName = focusTargetSelect.value.replace('__add_new__', '全般');
-        const now = new Date();
-        const dateStr = now.toISOString().split('T')[0];
+        const dateStr = getTodayIsoString();
 
         focusLogs.push({
             id: Date.now(),
@@ -2123,9 +2161,11 @@ async function stopTimerAndSave() {
         pomodoroPhaseBadge.textContent = '🍅 1回目の作業 (25分)';
         pomodoroPhaseBadge.style.backgroundColor = '#e74c3c';
         timerSeconds = 25 * 60;
+        initialTargetSeconds = 25 * 60;
     } else if (timerMode === 'countdown') {
         const customMin = parseInt(countdownCustomMinutes.value) || 25;
         timerSeconds = customMin * 60;
+        initialTargetSeconds = customMin * 60;
     } else {
         timerSeconds = 0;
     }
@@ -2142,7 +2182,6 @@ function updateTimerDisplay() {
 
 // 📊 集中時間グラフのレンダリング (Chart.js)
 function renderFocusCharts() {
-    // 1. 直近7日間の学習時間 (棒グラフ)
     const last7Days = [];
     const minutesByDate = {};
 
@@ -2186,7 +2225,6 @@ function renderFocusCharts() {
         }
     });
 
-    // 2. 項目別 内訳割合 (円グラフ)
     const categoryTotals = {};
     focusLogs.forEach(log => {
         const target = log.target || '全般';
