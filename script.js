@@ -1359,7 +1359,18 @@ function setupAuthListeners() {
         return;
     }
 
-    const { auth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } = window.firebaseAuth;
+    const { auth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } = window.firebaseAuth;
+
+    // リダイレクトから戻ってきた時のログイン結果を取得
+    getRedirectResult(auth).then(async (result) => {
+        if (result && result.user) {
+            currentUser = result.user;
+            await loadUserDataFromCloud(result.user.uid);
+            if (messageArea) messageArea.textContent = '🎉 ログインに成功しました！';
+        }
+    }).catch(error => {
+        console.error("リダイレクトログインエラー:", error);
+    });
 
     onAuthStateChanged(auth, async (user) => {
         const loginBtn = document.getElementById('googleLoginBtn');
@@ -1383,7 +1394,15 @@ function setupAuthListeners() {
     if (loginBtn) {
         loginBtn.addEventListener('click', () => {
             const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider).catch(error => console.error("ログインエラー:", error));
+            // ポップアップがブロックされた場合はリダイレクトにフォールバック
+            signInWithPopup(auth, provider).catch(error => {
+                if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+                    console.warn("ポップアップがブロックされたためリダイレクト処理に切り替えます");
+                    signInWithRedirect(auth, provider);
+                } else {
+                    console.error("ログインエラー:", error);
+                }
+            });
         });
     }
 
