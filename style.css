@@ -166,6 +166,141 @@ h1 {
     margin-bottom: 12px;
 }
 
+/* ==================== 🌸 かわいい手書き風カレンダー UI ==================== */
+.cute-calendar-card {
+    background-color: #f7f4e9; /* アイボリークリーム色 */
+    border-radius: 18px;
+    padding: 20px 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+    font-family: 'Yomogi', 'Kiwi Maru', cursive, sans-serif;
+    color: #38322c;
+}
+
+.cute-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 0 8px;
+}
+
+.cute-month-title {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #2d2722;
+}
+
+.cute-month-nav-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #7a6e65;
+    padding: 4px 8px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.cute-month-nav-btn:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+.cute-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.cute-day-header {
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: #38322c;
+    padding-bottom: 8px;
+}
+
+.cute-day-header.sun { color: #d35242; }
+.cute-day-header.sat { color: #4369b2; }
+
+.cute-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.cute-day-cell {
+    min-height: 58px;
+    border-radius: 10px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.15s;
+    background-color: transparent;
+}
+
+.cute-day-cell:hover {
+    background-color: rgba(230, 222, 206, 0.5);
+}
+
+.cute-day-cell.other-month {
+    opacity: 0.3;
+}
+
+.cute-day-number {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #38322c;
+    line-height: 1;
+}
+
+.cute-day-cell.sun .cute-day-number { color: #d35242; }
+.cute-day-cell.sat .cute-day-number { color: #4369b2; }
+
+.cute-day-cell.today .cute-day-number {
+    background-color: #38322c;
+    color: #ffffff !important;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.cute-holiday-label {
+    font-size: 0.65rem;
+    color: #d35242;
+    margin-top: 2px;
+    text-align: center;
+    line-height: 1.1;
+    font-weight: bold;
+}
+
+.cute-events-dots {
+    display: flex;
+    gap: 3px;
+    margin-top: auto;
+    padding-bottom: 2px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.cute-event-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #4a90e2;
+}
+
+.cute-event-dot.task-dot { background-color: #e67e22; }
+.cute-event-dot.ical-dot { background-color: #9b59b6; }
+
+/* その他基本スタイリング */
 .timetable-guide {
     font-size: 0.8rem;
     color: #888;
@@ -192,7 +327,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
     font-weight: bold;
 }
 
-/* スケジュール＆円グラフHTMLハイブリッドオーバーレイ */
 .date-selector-container {
     display: flex;
     justify-content: center;
@@ -306,7 +440,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 
 .preset-btn:hover { transform: scale(1.05); }
 
-/* タイマー用簡易選択ボタン */
 .preset-timer-btn {
     border: 1px solid #dcd6cd;
     background: #ffffff;
@@ -353,7 +486,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .time-range-group { display: flex; gap: 12px; margin-bottom: 8px; font-size: 0.88rem; font-weight: bold; color: #555; align-items: center; }
 .time-range-group input[type="time"] { padding: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; }
 
-/* 時間割表示 */
 .timetable-wrapper { overflow-x: auto; }
 .timetable { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .timetable th { padding: 8px 4px; font-size: 0.85rem; color: #7a6f60; text-align: center; border-bottom: 2px solid #e0dacf; }
@@ -372,8 +504,7 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .memo-count-badge { font-size: 0.65rem; color: #1e824c; font-weight: bold; background: rgba(255, 255, 255, 0.85); border-radius: 4px; padding: 1px 3px; }
 .empty-cell-placeholder { height: 100%; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 1.2rem; }
 
-/* 出欠管理デザイン */
-.attendance-summary-box { display: flex; gap: 6px; margin: 8px 0; justify-content: space-around; }
+.attendance-summary-box { display: flex; gap: 6px; margin: 8px 0; justify-content: space-around;}
 .attendance-count-badge { font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 6px; }
 .badge-present { background: #e8f8f0; color: #27ae60; }
 .badge-late { background: #fff3cd; color: #856404; }
@@ -387,7 +518,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .today-att-btn { border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: bold; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; }
 .today-att-btn.active { opacity: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
 
-/* 集中タイマーUI */
 .timer-display-box { text-align: center; margin: 16px 0; background: #2c3e50; color: #ffffff; border-radius: 12px; padding: 20px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.3); position: relative; }
 .timer-clock { font-size: 3.2rem; font-weight: 800; font-family: monospace; letter-spacing: 2px; }
 .pomodoro-badge { font-size: 0.88rem; font-weight: bold; background: #e74c3c; color: #fff; padding: 4px 12px; border-radius: 12px; display: inline-block; margin-bottom: 6px; }
@@ -398,7 +528,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 
 .chart-canvas-box { background: #ffffff; border-radius: 8px; padding: 10px; border: 1px solid #eae5db; margin-top: 8px; }
 
-/* リスト切替フィルター */
 .list-filter-section { margin-bottom: 12px; }
 .list-tab-container { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
 
@@ -406,13 +535,11 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .list-filter-chip.active { background: #4a4238; color: #ffffff; border-color: #4a4238; }
 .list-manage-btn { width: 100%; margin-top: 6px; font-size: 0.8rem; padding: 6px; }
 
-/* トグルフォーム */
 .task-form-wrapper { background: #faf8f5; border: 1px solid #eae5db; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
 .task-form-toggle-btn { width: 100%; padding: 12px 16px; background: #f0ece1; border: none; font-size: 0.95rem; font-weight: bold; color: #4a4238; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.2s; }
 .task-form-toggle-btn:hover { background: #e6e0d2; }
 .task-form-content { padding: 16px; border-top: 1px solid #eae5db; }
 
-/* モーダル表示 */
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center; padding: 16px; box-sizing: border-box; }
 .modal-content { background: #ffffff; width: 100%; max-width: 480px; padding: 20px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15); position: relative; max-height: 90vh; overflow-y: auto; }
 .modal-close-btn { position: absolute; top: 12px; right: 16px; font-size: 1.5rem; cursor: pointer; color: #aaa; }
@@ -431,7 +558,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .btn-secondary { background: #f0ece1; color: #5c5246; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
 .btn-danger { background: #e74c3c; color: #fff; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
-/* メモ＆リスト表示 */
 .memo-input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .memo-input-group textarea { width: 100%; height: 60px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 0.9rem; }
 .memo-list { list-style: none; padding: 0; margin: 0; }
@@ -439,7 +565,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .memo-date { font-size: 0.72rem; color: #888; display: block; margin-bottom: 2px; }
 .memo-del-btn { background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 0.8rem; padding: 0 4px; }
 
-/* フォーム・入力要素 */
 .input-group input, .input-group select, #dueDateTimeInput, #repeatTypeSelect, #repeatUntilInput, #schedRepeatType, #focusTargetSelect {
     padding: 10px; border: 1px solid #dcd6cd; border-radius: 8px; font-size: 0.9rem; background-color: #faf8f5; box-sizing: border-box; flex: 1; width: 100%;
 }
@@ -456,7 +581,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .days-checkbox-group label { font-size: 0.85rem; background: #fff; border: 1px solid #ccc; padding: 4px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 .repeat-until-group { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #666; }
 
-/* タスクリスト表示 */
 .notebook-task-list { list-style: none; padding: 0; margin: 0; }
 .notebook-task-list li { display: flex; flex-direction: column; gap: 8px; padding: 12px 6px; border-bottom: 2px dashed #d0c8b8; }
 .task-header-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
@@ -473,7 +597,6 @@ h3 { font-size: 0.95rem; color: #4a4238; margin-top: 12px; margin-bottom: 6px; }
 .due-tag { background: #fff3cd; color: #856404; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 .repeat-tag { background: #e8f8f0; color: #27ae60; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 
-/* 操作ボタン群 */
 .task-actions { display: flex; gap: 6px; align-items: center; }
 .action-btn { background: transparent; border: none; cursor: pointer; font-size: 0.8rem; padding: 2px 4px; opacity: 0.75; }
 .action-btn:hover { opacity: 1; }

@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>スマートライフ＆タスク管理</title>
+    <!-- 手書き風＆かわいらしいWebフォントの読み込み -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Yomogi&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <!-- グラフ描画用 Chart.js (CDN) -->
@@ -22,6 +26,7 @@
         </div>
         <nav class="sidebar-nav">
             <button class="sidebar-nav-btn active" data-target="viewHome">🏠 メイン画面</button>
+            <button class="sidebar-nav-btn" data-target="viewMonthCalendar">🗓️ 月間カレンダー</button>
             <button class="sidebar-nav-btn" data-target="viewSchedule">🕐 1日スケジュール</button>
             <button class="sidebar-nav-btn" data-target="viewTimetable">📅 週時間割</button>
             <button class="sidebar-nav-btn" data-target="viewTask">📝 タスク管理</button>
@@ -85,13 +90,49 @@
             <!-- 3. Googleカレンダー連携予定エリア -->
             <div class="dashboard-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2 style="margin:0;">📅 Google カレンダーの予定</h2>
-                    <span class="badge-tag" style="background:#e8f8f0; color:#27ae60;">連携準備完了</span>
+                    <h2 style="margin:0;">📅 外部カレンダーの同期予定</h2>
+                    <span class="badge-tag" style="background:#e8f8f0; color:#27ae60;">連携機能</span>
                 </div>
-                <p style="font-size:0.8rem; color:#777; margin-top:6px;">Google アカウントの連携を有効にすると、ここに外部カレンダーのスケジュールが自動表示されます。</p>
+                <p style="font-size:0.8rem; color:#777; margin-top:6px;">「月間カレンダー」画面からURLを設定すると、Googleカレンダー等の予定が表示されます。</p>
                 <ul id="googleCalendarList" class="memo-list" style="margin-top:8px;">
-                    <li style="color:#aaa; border:none; background:none;">同期されたGoogleカレンダーの予定はありません</li>
+                    <li style="color:#aaa; border:none; background:none;">同期された外部カレンダーの予定はありません</li>
                 </ul>
+            </div>
+        </div>
+
+        <!-- ==================== 新機能: 月間カレンダー ==================== -->
+        <div id="viewMonthCalendar" class="view-section">
+            <div class="cute-calendar-card">
+                <div class="cute-calendar-header">
+                    <button id="monthPrevBtn" class="cute-month-nav-btn">◀</button>
+                    <div id="cuteMonthTitle" class="cute-month-title">January</div>
+                    <button id="monthNextBtn" class="cute-month-nav-btn">▶</button>
+                </div>
+
+                <div class="cute-calendar-grid">
+                    <div class="cute-day-header sun">Sun</div>
+                    <div class="cute-day-header">Mon</div>
+                    <div class="cute-day-header">Tue</div>
+                    <div class="cute-day-header">Wed</div>
+                    <div class="cute-day-header">Thu</div>
+                    <div class="cute-day-header">Fri</div>
+                    <div class="cute-day-header sat">Sat</div>
+                </div>
+
+                <div id="cuteCalendarDaysGrid" class="cute-calendar-days"></div>
+            </div>
+
+            <!-- カレンダー設定・外部カレンダー連携（iCal / URL） -->
+            <div class="dashboard-card" style="margin-top: 16px;">
+                <h2>🔗 外部カレンダーURL連携 (Google / Apple / iCal)</h2>
+                <p style="font-size: 0.8rem; color: #666; margin-top: -4px;">
+                    Googleカレンダーの「iCal形式の公開URL」やWebカレンダーの.ics/iCal URLを入力すると、カレンダー上に予定を自動読み込みできます。
+                </p>
+                <div class="input-group">
+                    <input type="url" id="externalIcalUrlInput" placeholder="https://calendar.google.com/calendar/ical/...">
+                    <button id="saveIcalUrlBtn" class="btn-primary" style="white-space: nowrap;">読み込む</button>
+                </div>
+                <div id="icalStatusText" style="font-size: 0.8rem; color: #27ae60; font-weight: bold; margin-top: 4px;"></div>
             </div>
         </div>
 
@@ -284,7 +325,7 @@
 
         <!-- ==================== 4. 集中＆記録画面 ==================== -->
         <div id="viewFocus" class="view-section">
-            <h1>⏱️️ 集中＆記録</h1>
+            <h1>⏱ 集中＆記録</h1>
 
             <!-- 1. タイマー操作エリア -->
             <div class="dashboard-card">
@@ -360,6 +401,19 @@
                 <div class="chart-canvas-box" style="max-width:300px; margin:0 auto;">
                     <canvas id="categoryFocusChart"></canvas>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル: 日付詳細＆予定追加モーダル (月間カレンダー用) -->
+    <div id="dayDetailModalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <span id="dayDetailCloseBtn" class="modal-close-btn">&times;</span>
+            <h2 id="dayDetailTitle" style="font-family: 'Yomogi', cursive, sans-serif; font-size: 1.3rem;">2026年10月6日の予定</h2>
+            <div id="dayDetailContentList" class="memo-list" style="margin-top: 12px; max-height: 250px; overflow-y: auto;"></div>
+            
+            <div style="margin-top: 16px; display: flex; gap: 8px;">
+                <button id="goToSchedulePageBtn" class="btn-primary" style="flex: 1;">🕐 1日スケジュール画面で編集</button>
             </div>
         </div>
     </div>

@@ -26,6 +26,21 @@ const days = ["月", "火", "水", "木", "金"];
 const dayMap = { "日": 0, "月": 1, "火": 2, "水": 3, "木": 4, "金": 5, "土": 6 };
 const dayNames = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
 
+// 祝日データ (簡易定義)
+const japaneseHolidays = {
+    "2026-01-01": "元旦", "2026-01-12": "成人の日", "2026-02-11": "建国記念の日",
+    "2026-02-23": "天皇誕生日", "2026-03-20": "春分の日", "2026-04-29": "昭和の日",
+    "2026-05-03": "憲法記念日", "2026-05-04": "みどりの日", "2026-05-05": "こどもの日",
+    "2026-07-20": "海の日", "2026-08-11": "山の日", "2026-09-21": "敬老の日",
+    "2026-09-23": "秋分の日", "2026-10-12": "スポーツの日", "2026-11-03": "文化の日",
+    "2026-11-23": "勤労感謝の日"
+};
+
+const monthNamesEnglish = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+];
+
 // データ保持
 let timetableData = JSON.parse(localStorage.getItem('myTimetable')) || {};
 let tasks = JSON.parse(localStorage.getItem('myTasks')) || [];
@@ -39,6 +54,8 @@ let savedSchedulePresets = JSON.parse(localStorage.getItem('mySchedulePresets'))
     { title: "風呂", color: "#F5B7B1" }
 ];
 let focusLogs = JSON.parse(localStorage.getItem('myFocusLogs')) || [];
+let externalIcalUrl = localStorage.getItem('myExternalIcalUrl') || "";
+let fetchedIcalEvents = [];
 
 let activeCategoryFilter = "すべて";
 let editingTaskId = null;
@@ -55,19 +72,20 @@ function getTodayIsoString() {
 }
 
 let selectedSchedDate = getTodayIsoString();
+let currentViewYear = new Date().getFullYear();
+let currentViewMonth = new Date().getMonth();
 
-// タイマー状態変数（バックグラウンド完全同期対応）
+// タイマー状態変数
 let timerInterval = null;
 let timerSeconds = 25 * 60;
-let initialTargetSeconds = 25 * 60; // 開始時のターゲット秒数
-let timerStartTime = null; // スタート時の現在時刻 (ミリ秒)
+let initialTargetSeconds = 25 * 60;
+let timerStartTime = null;
 let isTimerRunning = false;
-let timerMode = 'pomodoro'; // 'pomodoro', 'countdown', 'stopwatch'
-let pomodoroPhase = 'work'; // 'work' (25分) or 'break' (5分)
-let pomodoroCycleCount = 1; // 🍅 何回目のポモドーロか
+let timerMode = 'pomodoro';
+let pomodoroPhase = 'work';
+let pomodoroCycleCount = 1;
 let timerElapsedSeconds = 0;
 
-// グラフインスタンス保持
 let weeklyChartInstance = null;
 let categoryChartInstance = null;
 
@@ -81,6 +99,20 @@ const currentScheduleText = document.getElementById('currentScheduleText');
 const nextScheduleText = document.getElementById('nextScheduleText');
 const dueThisWeekTaskList = document.getElementById('dueThisWeekTaskList');
 const todayAttendanceContainer = document.getElementById('todayAttendanceContainer');
+
+// カレンダー新機能参照
+const cuteMonthTitle = document.getElementById('cuteMonthTitle');
+const monthPrevBtn = document.getElementById('monthPrevBtn');
+const monthNextBtn = document.getElementById('monthNextBtn');
+const cuteCalendarDaysGrid = document.getElementById('cuteCalendarDaysGrid');
+const externalIcalUrlInput = document.getElementById('externalIcalUrlInput');
+const saveIcalUrlBtn = document.getElementById('saveIcalUrlBtn');
+const icalStatusText = document.getElementById('icalStatusText');
+const dayDetailModalOverlay = document.getElementById('dayDetailModalOverlay');
+const dayDetailCloseBtn = document.getElementById('dayDetailCloseBtn');
+const dayDetailTitle = document.getElementById('dayDetailTitle');
+const dayDetailContentList = document.getElementById('dayDetailContentList');
+const goToSchedulePageBtn = document.getElementById('goToSchedulePageBtn');
 
 const scheduleDateInput = document.getElementById('scheduleDateInput');
 const prevDateBtn = document.getElementById('prevDateBtn');
@@ -169,7 +201,6 @@ const messageArea = document.getElementById('messageArea');
 const taskList = document.getElementById('taskList');
 const listTabContainer = document.getElementById('listTabContainer');
 
-// 集中タイマー用要素
 const focusTargetSelect = document.getElementById('focusTargetSelect');
 const customSubjectInputArea = document.getElementById('customSubjectInputArea');
 const customSubjectInput = document.getElementById('customSubjectInput');
@@ -186,7 +217,6 @@ const stopTimerBtn = document.getElementById('stopTimerBtn');
 
 // アプリ初期化
 window.addEventListener('DOMContentLoaded', () => {
-    // 起動時に現在日付にセット
     selectedSchedDate = getTodayIsoString();
     scheduleDateInput.value = selectedSchedDate;
     manualAttDateInput.value = selectedSchedDate;
@@ -206,6 +236,13 @@ window.addEventListener('DOMContentLoaded', () => {
     renderTasks();
     setupAuthListeners();
     setupFocusTimerEvents();
+
+    setupCuteCalendarEvents();
+    if (externalIcalUrl) {
+        externalIcalUrlInput.value = externalIcalUrl;
+        fetchAndParseIcal(externalIcalUrl);
+    }
+    renderCuteCalendar(currentViewYear, currentViewMonth);
 
     scheduleCanvas.addEventListener('click', handleCanvasClick);
     updateDashboard();
@@ -244,8 +281,8 @@ function setupSidebarEvents() {
             const targetSec = document.getElementById(targetId);
             if (targetSec) targetSec.classList.add('active');
 
-            // 画面切替時に日付を最新化
             if (targetId === 'viewHome') updateDashboard();
+            if (targetId === 'viewMonthCalendar') renderCuteCalendar(currentViewYear, currentViewMonth);
             if (targetId === 'viewSchedule') {
                 selectedSchedDate = getTodayIsoString();
                 scheduleDateInput.value = selectedSchedDate;
@@ -264,6 +301,234 @@ function setupSidebarEvents() {
 function closeSidebar() {
     sidebar.classList.remove('open');
     sidebarOverlay.style.display = 'none';
+}
+
+// 🌸 かわいい月間カレンダー制御ロジック
+function setupCuteCalendarEvents() {
+    monthPrevBtn.onclick = () => {
+        currentViewMonth--;
+        if (currentViewMonth < 0) {
+            currentViewMonth = 11;
+            currentViewYear--;
+        }
+        renderCuteCalendar(currentViewYear, currentViewMonth);
+    };
+
+    monthNextBtn.onclick = () => {
+        currentViewMonth++;
+        if (currentViewMonth > 11) {
+            currentViewMonth = 0;
+            currentViewYear++;
+        }
+        renderCuteCalendar(currentViewYear, currentViewMonth);
+    };
+
+    saveIcalUrlBtn.onclick = () => {
+        const url = externalIcalUrlInput.value.trim();
+        if (!url) return;
+        externalIcalUrl = url;
+        localStorage.setItem('myExternalIcalUrl', externalIcalUrl);
+        fetchAndParseIcal(url);
+    };
+
+    dayDetailCloseBtn.onclick = () => dayDetailModalOverlay.style.display = 'none';
+}
+
+function renderCuteCalendar(year, month) {
+    cuteMonthTitle.textContent = monthNamesEnglish[month];
+    cuteCalendarDaysGrid.innerHTML = '';
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startingDayOfWeek = firstDay.getDay();
+    const totalDays = lastDay.getDate();
+
+    const todayIso = getTodayIsoString();
+
+    // 前月の日付埋め
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+        const dayNum = prevMonthLastDay - i;
+        const cell = createCuteDayCell(dayNum, true, year, month - 1, todayIso);
+        cuteCalendarDaysGrid.appendChild(cell);
+    }
+
+    // 当月の日付
+    for (let day = 1; day <= totalDays; day++) {
+        const cell = createCuteDayCell(day, false, year, month, todayIso);
+        cuteCalendarDaysGrid.appendChild(cell);
+    }
+
+    // 翌月の日付埋め
+    const totalCells = startingDayOfWeek + totalDays;
+    const remainingCells = (42 - totalCells) % 7;
+    for (let day = 1; day <= remainingCells; day++) {
+        const cell = createCuteDayCell(day, true, year, month + 1, todayIso);
+        cuteCalendarDaysGrid.appendChild(cell);
+    }
+}
+
+function createCuteDayCell(dayNum, isOtherMonth, year, month, todayIso) {
+    const targetDate = new Date(year, month, dayNum);
+    const yyyy = targetDate.getFullYear();
+    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(targetDate.getDate()).padStart(2, '0');
+    const dateIso = `${yyyy}-${mm}-${dd}`;
+    const dayOfWeek = targetDate.getDay();
+
+    const cell = document.createElement('div');
+    cell.className = `cute-day-cell ${isOtherMonth ? 'other-month' : ''}`;
+    if (dayOfWeek === 0) cell.classList.add('sun');
+    if (dayOfWeek === 6) cell.classList.add('sat');
+    if (dateIso === todayIso) cell.classList.add('today');
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'cute-day-number';
+    numSpan.textContent = dayNum;
+    cell.appendChild(numSpan);
+
+    // 祝日チェック
+    if (japaneseHolidays[dateIso]) {
+        const holidaySpan = document.createElement('span');
+        holidaySpan.className = 'cute-holiday-label';
+        holidaySpan.textContent = japaneseHolidays[dateIso];
+        cell.appendChild(holidaySpan);
+    }
+
+    // 予定ドットマーカー
+    const dotsContainer = document.createElement('div');
+    dotsContainer.className = 'cute-events-dots';
+
+    const schedItems = getScheduleForDate(dateIso);
+    const dayTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(dateIso) && !t.completed);
+    const dayIcalEvents = fetchedIcalEvents.filter(e => e.date === dateIso);
+
+    if (schedItems.length > 0) {
+        const dot = document.createElement('div');
+        dot.className = 'cute-event-dot';
+        dotsContainer.appendChild(dot);
+    }
+    if (dayTasks.length > 0) {
+        const dot = document.createElement('div');
+        dot.className = 'cute-event-dot task-dot';
+        dotsContainer.appendChild(dot);
+    }
+    if (dayIcalEvents.length > 0) {
+        const dot = document.createElement('div');
+        dot.className = 'cute-event-dot ical-dot';
+        dotsContainer.appendChild(dot);
+    }
+
+    cell.appendChild(dotsContainer);
+
+    cell.onclick = () => openDayDetailModal(dateIso, schedItems, dayTasks, dayIcalEvents);
+
+    return cell;
+}
+
+function openDayDetailModal(dateIso, schedItems, dayTasks, dayIcalEvents) {
+    dayDetailTitle.textContent = `${dateIso} の予定一覧`;
+    dayDetailContentList.innerHTML = '';
+
+    if (schedItems.length === 0 && dayTasks.length === 0 && dayIcalEvents.length === 0) {
+        dayDetailContentList.innerHTML = '<li style="color:#aaa; border:none; background:none;">予定やタスクはありません</li>';
+    } else {
+        schedItems.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `<div>🕐 <strong>${item.title}</strong> (${minToTimeStr(item.startMin)} - ${minToTimeStr(item.endMin)})</div>`;
+            dayDetailContentList.appendChild(li);
+        });
+
+        dayTasks.forEach(task => {
+            const li = document.createElement('li');
+            li.innerHTML = `<div>📝 <strong>[タスク] ${task.text}</strong></div>`;
+            dayDetailContentList.appendChild(li);
+        });
+
+        dayIcalEvents.forEach(evt => {
+            const li = document.createElement('li');
+            li.innerHTML = `<div>📅 <strong>[外部] ${evt.summary}</strong></div>`;
+            dayDetailContentList.appendChild(li);
+        });
+    }
+
+    goToSchedulePageBtn.onclick = () => {
+        selectedSchedDate = dateIso;
+        scheduleDateInput.value = selectedSchedDate;
+        updateScheduleView();
+        dayDetailModalOverlay.style.display = 'none';
+
+        document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-target="viewSchedule"]').classList.add('active');
+        document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+        document.getElementById('viewSchedule').classList.add('active');
+    };
+
+    dayDetailModalOverlay.style.display = 'flex';
+}
+
+async function fetchAndParseIcal(url) {
+    icalStatusText.textContent = '⏳ 外部カレンダーを同期中...';
+    try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxyUrl);
+        const text = await res.text();
+
+        fetchedIcalEvents = [];
+        const lines = text.split(/\r\n|\n/);
+        let inEvent = false;
+        let currentSummary = '';
+        let currentDate = '';
+
+        lines.forEach(line => {
+            if (line.startsWith('BEGIN:VEVENT')) {
+                inEvent = true;
+                currentSummary = '';
+                currentDate = '';
+            } else if (line.startsWith('END:VEVENT')) {
+                if (inEvent && currentDate && currentSummary) {
+                    fetchedIcalEvents.push({ date: currentDate, summary: currentSummary });
+                }
+                inEvent = false;
+            } else if (inEvent) {
+                if (line.startsWith('SUMMARY:')) {
+                    currentSummary = line.replace('SUMMARY:', '').trim();
+                } else if (line.startsWith('DTSTART')) {
+                    const match = line.match(/\:(\d{4})(\d{2})(\d{2})/);
+                    if (match) {
+                        currentDate = `${match[1]}-${match[2]}-${match[3]}`;
+                    }
+                }
+            }
+        });
+
+        icalStatusText.textContent = `✅ 外部カレンダーから ${fetchedIcalEvents.length} 件の予定を同期しました！`;
+        renderCuteCalendar(currentViewYear, currentViewMonth);
+        renderGoogleCalendarListDashboard();
+    } catch (e) {
+        console.error(e);
+        icalStatusText.textContent = '⚠ 連携に失敗しました。URLまたはCORS設定をご確認ください。';
+    }
+}
+
+function renderGoogleCalendarListDashboard() {
+    const listEl = document.getElementById('googleCalendarList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (fetchedIcalEvents.length === 0) {
+        listEl.innerHTML = '<li style="color:#aaa; border:none; background:none;">同期された外部カレンダーの予定はありません</li>';
+        return;
+    }
+
+    const todayIso = getTodayIsoString();
+    const upcoming = fetchedIcalEvents.filter(e => e.date >= todayIso).slice(0, 5);
+
+    upcoming.forEach(e => {
+        const li = document.createElement('li');
+        li.innerHTML = `<div>📅 <strong>${e.summary}</strong> (${e.date})</div>`;
+        listEl.appendChild(li);
+    });
 }
 
 function updateDashboard() {
@@ -300,7 +565,6 @@ function updateDashboard() {
     renderTodayAttendanceCard();
 }
 
-// 🏫 ダッシュボード用: 本日の授業の出欠クイック登録カード
 function renderTodayAttendanceCard() {
     todayAttendanceContainer.innerHTML = '';
     const now = new Date();
@@ -983,6 +1247,7 @@ saveSchedBtn.addEventListener('click', async () => {
 
     closeSchedForm();
     updateScheduleView();
+    renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
     if (messageArea) messageArea.textContent = '💾 予定を保存しました！';
 });
@@ -1038,6 +1303,7 @@ async function executeDeleteSchedule(singleDayOnly) {
     localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
     await saveUserDataToCloud();
     updateScheduleView();
+    renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
     targetItemToDelete = null;
     if (messageArea) messageArea.textContent = '🗑 予定を削除しました。';
@@ -1139,12 +1405,13 @@ async function saveUserDataToCloud() {
         dailySchedules: JSON.parse(localStorage.getItem('myDailySchedules')) || {},
         schedulePresets: JSON.parse(localStorage.getItem('mySchedulePresets')) || [],
         focusLogs: JSON.parse(localStorage.getItem('myFocusLogs')) || [],
+        externalIcalUrl: localStorage.getItem('myExternalIcalUrl') || "",
         updatedAt: serverTimestamp()
     };
 
     try {
         await setDoc(doc(db, 'users', currentUser.uid), dataToSave, { merge: true });
-        console.log("☁️️ クラウドへ自動バックアップ完了");
+        console.log("☁ クラウドへ自動バックアップ完了");
     } catch (error) {
         console.error("クラウドバックアップエラー:", error);
     }
@@ -1167,6 +1434,12 @@ async function loadUserDataFromCloud(uid) {
             if (data.dailySchedules) localStorage.setItem('myDailySchedules', JSON.stringify(data.dailySchedules));
             if (data.schedulePresets) localStorage.setItem('mySchedulePresets', JSON.stringify(data.schedulePresets));
             if (data.focusLogs) localStorage.setItem('myFocusLogs', JSON.stringify(data.focusLogs));
+            if (data.externalIcalUrl) {
+                localStorage.setItem('myExternalIcalUrl', data.externalIcalUrl);
+                externalIcalUrl = data.externalIcalUrl;
+                externalIcalUrlInput.value = externalIcalUrl;
+                fetchAndParseIcal(externalIcalUrl);
+            }
 
             timetableData = data.timetable || {};
             tasks = data.tasks || [];
@@ -1179,6 +1452,7 @@ async function loadUserDataFromCloud(uid) {
             checkAndResetClassTasks();
             renderPresetButtons();
             updateScheduleView();
+            renderCuteCalendar(currentViewYear, currentViewMonth);
             renderTimetable();
             updateSubjectSelectOptions();
             renderCategoryFilterTabs();
@@ -1468,6 +1742,7 @@ saveSubjectBtn.onclick = async () => {
     renderTimetable();
     updateSubjectSelectOptions();
     updateScheduleView();
+    renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
     closeModal();
     if (messageArea) messageArea.textContent = '💾 科目を保存しました！';
@@ -1481,6 +1756,7 @@ deleteSubjectBtn.onclick = async () => {
         renderTimetable();
         updateSubjectSelectOptions();
         updateScheduleView();
+        renderCuteCalendar(currentViewYear, currentViewMonth);
         updateDashboard();
         closeModal();
         if (messageArea) messageArea.textContent = '🗑 コマを削除しました。';
@@ -1621,6 +1897,7 @@ addTaskBtn.addEventListener('click', async () => {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
     toggleTaskForm(false);
 });
@@ -1725,6 +2002,7 @@ async function toggleTask(id) {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
 }
 
@@ -1736,6 +2014,7 @@ async function deleteTask(id) {
     localStorage.setItem('myTasks', JSON.stringify(tasks));
     await saveUserDataToCloud();
     renderTasks();
+    renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
 }
 
@@ -1922,7 +2201,6 @@ function renderTasks() {
     });
 }
 
-// ⏱️ 集中タイマー ＆ バックグラウンド正確同期機能
 function setupFocusTimerEvents() {
     document.querySelectorAll('input[name="focusTimerMode"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -2006,7 +2284,6 @@ function setupFocusTimerEvents() {
     pauseTimerBtn.onclick = pauseTimer;
     stopTimerBtn.onclick = stopTimerAndSave;
 
-    // タブ復帰（バックグラウンドから戻った時）にズレを補正
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && isTimerRunning) {
             syncTimerWithRealTime();
@@ -2067,7 +2344,6 @@ function tickTimer() {
     syncTimerWithRealTime();
 }
 
-// タイムスタンプ基準で実際の経過時間を正確に動かす関数
 function syncTimerWithRealTime() {
     if (!isTimerRunning) return;
 
@@ -2083,7 +2359,6 @@ function syncTimerWithRealTime() {
             if (pomodoroPhase === 'work') timerElapsedSeconds = actualElapsedSec;
             updateTimerDisplay();
         } else {
-            // フェーズ完了処理
             if (pomodoroPhase === 'work') {
                 alert(`🍅 ${pomodoroCycleCount}回目の作業（25分）が完了しました！5分間の休憩に入ります。`);
                 pomodoroPhase = 'break';
@@ -2115,7 +2390,7 @@ function syncTimerWithRealTime() {
             alert('🎉 設定時間が終了しました！お疲れ様でした！');
             stopTimerAndSave();
         }
-    } else { // stopwatch
+    } else {
         timerSeconds = actualElapsedSec;
         timerElapsedSeconds = actualElapsedSec;
         updateTimerDisplay();
@@ -2150,7 +2425,6 @@ async function stopTimerAndSave() {
         if (messageArea) messageArea.textContent = `💾 ${elapsedMinutes}分間の集中記録を保存しました！`;
     }
 
-    // リセット
     timerElapsedSeconds = 0;
     pomodoroCycleCount = 1;
     startTimerBtn.textContent = '▶ スタート';
@@ -2180,7 +2454,6 @@ function updateTimerDisplay() {
     timerClockText.textContent = `${m}:${s}`;
 }
 
-// 📊 集中時間グラフのレンダリング (Chart.js)
 function renderFocusCharts() {
     const last7Days = [];
     const minutesByDate = {};
