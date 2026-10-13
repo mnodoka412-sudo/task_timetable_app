@@ -2251,151 +2251,197 @@ function renderTasks() {
         return;
     }
 
-    filteredTasks.forEach(task => {
-        const li = document.createElement('li');
+    // 未完了タスクと完了済みタスクに分離
+    const uncompletedTasks = filteredTasks.filter(t => !t.completed);
+    const completedTasks = filteredTasks.filter(t => t.completed);
 
-        const headerRow = document.createElement('div');
-        headerRow.className = 'task-header-row';
+    // 未完了タスクの描画
+    if (uncompletedTasks.length === 0 && completedTasks.length > 0) {
+        const emptyNotice = document.createElement('li');
+        emptyNotice.style.color = 'var(--text-sub)';
+        emptyNotice.style.border = 'none';
+        emptyNotice.style.padding = '8px 0';
+        emptyNotice.textContent = '未完了のタスクはありません🎉';
+        taskList.appendChild(emptyNotice);
+    } else {
+        uncompletedTasks.forEach(task => {
+            taskList.appendChild(createTaskListItem(task));
+        });
+    }
 
-        const leftDiv = document.createElement('div');
-        leftDiv.className = 'task-left';
+    // 完了済みタスクがあればアコーディオンで収納表示
+    if (completedTasks.length > 0) {
+        const accordion = document.createElement('details');
+        accordion.className = 'completed-accordion';
 
-        const checkbox = document.createElement('div');
-        checkbox.className = `custom-checkbox ${task.completed ? 'checked' : ''}`;
-        checkbox.onclick = () => toggleTask(task.id);
+        const summary = document.createElement('summary');
+        summary.className = 'completed-summary';
+        summary.textContent = `✅ 完了したタスク (${completedTasks.length}件)`;
 
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'task-info';
+        const completedUl = document.createElement('ul');
+        completedUl.className = 'completed-task-list';
 
-        const tagsDiv = document.createElement('div');
-        tagsDiv.className = 'task-tags';
+        completedTasks.forEach(task => {
+            completedUl.appendChild(createTaskListItem(task));
+        });
 
-        const categoryTag = document.createElement('span');
-        categoryTag.className = 'category-tag';
-        categoryTag.textContent = task.category || '未分類';
-        tagsDiv.appendChild(categoryTag);
+        accordion.appendChild(summary);
+        accordion.appendChild(completedUl);
+        taskList.appendChild(accordion);
+    }
+}
 
-        if (task.subject) {
-            const subjectTag = document.createElement('span');
-            subjectTag.className = 'task-tag';
-            subjectTag.textContent = task.subject;
-            tagsDiv.appendChild(subjectTag);
-        }
+// タスク1件ごとのDOM要素作成関数
+function createTaskListItem(task) {
+    const li = document.createElement('li');
 
-        if (task.dueDate) {
-            const dueTag = document.createElement('span');
-            dueTag.className = 'due-tag';
-            dueTag.textContent = formatDueDate(task.dueDate);
-            tagsDiv.appendChild(dueTag);
-        }
+    if (task.completed) {
+        li.style.opacity = '0.55';
+    } else {
+        li.style.opacity = '1';
+    }
 
-        if (task.repeat && task.repeat.type !== 'none') {
-            const repeatTag = document.createElement('span');
-            repeatTag.className = 'repeat-tag';
-            repeatTag.textContent = formatRepeatInfo(task.repeat, task.resetDate);
-            tagsDiv.appendChild(repeatTag);
-        }
+    const headerRow = document.createElement('div');
+    headerRow.className = 'task-header-row';
 
-        infoDiv.appendChild(tagsDiv);
+    const leftDiv = document.createElement('div');
+    leftDiv.className = 'task-left';
 
-        const textSpan = document.createElement('span');
-        textSpan.className = `task-text ${task.completed ? 'completed' : ''}`;
-        textSpan.textContent = task.text;
-        infoDiv.appendChild(textSpan);
+    const checkbox = document.createElement('div');
+    checkbox.className = `custom-checkbox ${task.completed ? 'checked' : ''}`;
+    checkbox.onclick = () => toggleTask(task.id);
 
-        leftDiv.appendChild(checkbox);
-        leftDiv.appendChild(infoDiv);
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'task-info';
 
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'task-actions';
+    const tagsDiv = document.createElement('div');
+    tagsDiv.className = 'task-tags';
 
-        const editBtn = document.createElement('button');
-        editBtn.className = 'action-btn edit-btn';
-        editBtn.textContent = '✏️ 編集';
-        editBtn.onclick = () => startEditingTask(task.id);
+    const categoryTag = document.createElement('span');
+    categoryTag.className = 'category-tag';
+    categoryTag.textContent = task.category || '未分類';
+    tagsDiv.appendChild(categoryTag);
 
-        const delBtn = document.createElement('button');
-        delBtn.className = 'action-btn delete-btn';
-        delBtn.textContent = '✖ 削除';
-        delBtn.onclick = () => deleteTask(task.id);
+    if (task.subject) {
+        const subjectTag = document.createElement('span');
+        subjectTag.className = 'task-tag';
+        subjectTag.textContent = task.subject;
+        tagsDiv.appendChild(subjectTag);
+    }
 
-        actionsDiv.appendChild(editBtn);
-        actionsDiv.appendChild(delBtn);
+    if (task.dueDate) {
+        const dueTag = document.createElement('span');
+        dueTag.className = 'due-tag';
+        dueTag.textContent = formatDueDate(task.dueDate);
+        tagsDiv.appendChild(dueTag);
+    }
 
-        headerRow.appendChild(leftDiv);
-        headerRow.appendChild(actionsDiv);
+    if (task.repeat && task.repeat.type !== 'none') {
+        const repeatTag = document.createElement('span');
+        repeatTag.className = 'repeat-tag';
+        repeatTag.textContent = formatRepeatInfo(task.repeat, task.resetDate);
+        tagsDiv.appendChild(repeatTag);
+    }
 
-        const memoArea = document.createElement('div');
-        memoArea.className = 'task-memo-area';
+    infoDiv.appendChild(tagsDiv);
 
-        const isEditingThisMemo = (editingMemoTaskId === task.id);
+    const textSpan = document.createElement('span');
+    textSpan.className = `task-text ${task.completed ? 'completed' : ''}`;
+    textSpan.textContent = task.text;
+    infoDiv.appendChild(textSpan);
 
-        if (isEditingThisMemo) {
-            const editModeDiv = document.createElement('div');
-            editModeDiv.className = 'task-memo-edit-mode';
+    leftDiv.appendChild(checkbox);
+    leftDiv.appendChild(infoDiv);
 
-            const noteTextarea = document.createElement('textarea');
-            noteTextarea.placeholder = 'メモを入力 (改行できます)...';
-            noteTextarea.value = task.note || '';
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'task-actions';
 
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'task-memo-btn-group';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'action-btn edit-btn';
+    editBtn.textContent = '✏️ 編集';
+    editBtn.onclick = () => startEditingTask(task.id);
 
-            const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn-primary';
-            saveBtn.textContent = '💾 保存';
-            saveBtn.onclick = () => saveTaskNote(task.id, noteTextarea.value);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'action-btn delete-btn';
+    delBtn.textContent = '✖ 削除';
+    delBtn.onclick = () => deleteTask(task.id);
 
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn-secondary';
-            cancelBtn.textContent = 'キャンセル';
-            cancelBtn.onclick = () => {
-                editingMemoTaskId = null;
+    actionsDiv.appendChild(editBtn);
+    actionsDiv.appendChild(delBtn);
+
+    headerRow.appendChild(leftDiv);
+    headerRow.appendChild(actionsDiv);
+
+    const memoArea = document.createElement('div');
+    memoArea.className = 'task-memo-area';
+
+    const isEditingThisMemo = (editingMemoTaskId === task.id);
+
+    if (isEditingThisMemo) {
+        const editModeDiv = document.createElement('div');
+        editModeDiv.className = 'task-memo-edit-mode';
+
+        const noteTextarea = document.createElement('textarea');
+        noteTextarea.placeholder = 'メモを入力 (改行できます)...';
+        noteTextarea.value = task.note || '';
+
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'task-memo-btn-group';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-primary';
+        saveBtn.textContent = '💾 保存';
+        saveBtn.onclick = () => saveTaskNote(task.id, noteTextarea.value);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-secondary';
+        cancelBtn.textContent = 'キャンセル';
+        cancelBtn.onclick = () => {
+            editingMemoTaskId = null;
+            renderTasks();
+        };
+
+        btnGroup.appendChild(saveBtn);
+        btnGroup.appendChild(cancelBtn);
+
+        editModeDiv.appendChild(noteTextarea);
+        editModeDiv.appendChild(btnGroup);
+        memoArea.appendChild(editModeDiv);
+    } else {
+        const viewModeDiv = document.createElement('div');
+        viewModeDiv.className = 'task-memo-view-mode';
+
+        if (task.note) {
+            const noteDisplay = document.createElement('div');
+            noteDisplay.className = 'task-memo-text';
+            noteDisplay.textContent = task.note;
+            viewModeDiv.appendChild(noteDisplay);
+
+            const editMemoBtn = document.createElement('button');
+            editMemoBtn.className = 'task-memo-edit-btn';
+            editMemoBtn.textContent = '✏️ メモを編集';
+            editMemoBtn.onclick = () => {
+                editingMemoTaskId = task.id;
                 renderTasks();
             };
-
-            btnGroup.appendChild(saveBtn);
-            btnGroup.appendChild(cancelBtn);
-
-            editModeDiv.appendChild(noteTextarea);
-            editModeDiv.appendChild(btnGroup);
-            memoArea.appendChild(editModeDiv);
+            viewModeDiv.appendChild(editMemoBtn);
         } else {
-            const viewModeDiv = document.createElement('div');
-            viewModeDiv.className = 'task-memo-view-mode';
-
-            if (task.note) {
-                const noteDisplay = document.createElement('div');
-                noteDisplay.className = 'task-memo-text';
-                noteDisplay.textContent = task.note;
-                viewModeDiv.appendChild(noteDisplay);
-
-                const editMemoBtn = document.createElement('button');
-                editMemoBtn.className = 'task-memo-edit-btn';
-                editMemoBtn.textContent = '✏️ メモを編集';
-                editMemoBtn.onclick = () => {
-                    editingMemoTaskId = task.id;
-                    renderTasks();
-                };
-                viewModeDiv.appendChild(editMemoBtn);
-            } else {
-                const addMemoBtn = document.createElement('button');
-                addMemoBtn.className = 'task-memo-edit-btn';
-                addMemoBtn.textContent = '➕ メモを追加';
-                addMemoBtn.onclick = () => {
-                    editingMemoTaskId = task.id;
-                    renderTasks();
-                };
-                viewModeDiv.appendChild(addMemoBtn);
-            }
-
-            memoArea.appendChild(viewModeDiv);
+            const addMemoBtn = document.createElement('button');
+            addMemoBtn.className = 'task-memo-edit-btn';
+            addMemoBtn.textContent = '➕ メモを追加';
+            addMemoBtn.onclick = () => {
+                editingMemoTaskId = task.id;
+                renderTasks();
+            };
+            viewModeDiv.appendChild(addMemoBtn);
         }
 
-        li.appendChild(headerRow);
-        li.appendChild(memoArea);
-        taskList.appendChild(li);
-    });
+        memoArea.appendChild(viewModeDiv);
+    }
+
+    li.appendChild(headerRow);
+    li.appendChild(memoArea);
+    return li;
 }
 
 function setupFocusTimerEvents() {

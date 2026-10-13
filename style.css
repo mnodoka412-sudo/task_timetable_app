@@ -730,3 +730,44 @@ h3 { font-size: 0.95rem; color: var(--text-main); margin-top: 12px; margin-botto
     transition: transform 0.2s, background-color 0.2s;
 }
 .fab-btn:hover { transform: scale(1.1); background-color: var(--primary-hover); }
+/* 完了タスクのアコーディオン */
+.completed-accordion {
+    margin-top: 16px;
+    border-top: 1px dashed var(--card-border, #e0e0e0);
+    padding-top: 12px;
+}
+
+.completed-summary {
+    font-size: 0.88rem;
+    font-weight: bold;
+    color: var(--text-sub, #666);
+    cursor: pointer;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 8px;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.completed-summary::-webkit-details-marker {
+    display: none;
+}
+
+.completed-summary::after {
+    content: '▼';
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+}
+
+details[open] .completed-summary::after {
+    transform: rotate(180deg);
+}
+
+.completed-task-list {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0 0;
+}
