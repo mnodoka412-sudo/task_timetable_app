@@ -321,7 +321,7 @@ function setupThemeModalEvents() {
 
 // オンライン復帰時の同期
 window.addEventListener('online', async () => {
-    if (messageArea) messageArea.textContent = '🌐 オンラインに復帰しました。同期確認中...';
+    if (messageArea) messageArea.textContent = '🌐 オンラインに復帰しました。データを合体中...';
     await syncDataWithCloud();
 });
 
@@ -950,12 +950,10 @@ function getScheduleForDate(dateStr) {
     const currentDayChar = dayStrMap[dayOfWeek];
     const weeklyKey = `weekly_${dayOfWeek}`;
 
-    // その日のスケジュール（削除・変更済み含む）が存在する場合はそれをそのまま返す（削除した授業の復活を防止）
     if (dailySchedules[dateStr]) {
         return dailySchedules[dateStr];
     }
 
-    // まだ操作されていない日付のみ、毎週の繰り返し予定 ＋ 時間割の授業を自動補完
     let baseItems = [];
     if (dailySchedules[weeklyKey]) {
         baseItems = [...dailySchedules[weeklyKey]];
@@ -1444,7 +1442,7 @@ function setupAuthListeners() {
     getRedirectResult(auth).then(async (result) => {
         if (result && result.user) {
             currentUser = result.user;
-            await loadUserDataFromCloud(result.user.uid);
+            await syncDataWithCloud();
             if (messageArea) messageArea.textContent = '🎉 ログインに成功しました！';
         }
     }).catch(error => {
@@ -1461,7 +1459,7 @@ function setupAuthListeners() {
             if (loginBtn) loginBtn.style.display = 'none';
             if (userInfo) userInfo.style.display = 'block';
             if (userName) userName.textContent = `${user.displayName} さん`;
-            await loadUserDataFromCloud(user.uid);
+            await syncDataWithCloud();
         } else {
             currentUser = null;
             if (loginBtn) loginBtn.style.display = 'block';
@@ -1489,23 +1487,56 @@ function setupAuthListeners() {
     }
 }
 
+// スマートマージ用ユーティリティ関数
 function mergeTasksData(localTasks, cloudTasks) {
     const taskMap = new Map();
-    cloudTasks.forEach(task => { if (task && task.id) taskMap.set(task.id, task); });
-    localTasks.forEach(localTask => {
+    (cloudTasks || []).forEach(task => { if (task && task.id) taskMap.set(String(task.id), task); });
+    (localTasks || []).forEach(localTask => {
         if (!localTask || !localTask.id) return;
-        const cloudTask = taskMap.get(localTask.id);
+        const cloudTask = taskMap.get(String(localTask.id));
         if (!cloudTask) {
-            taskMap.set(localTask.id, localTask);
+            taskMap.set(String(localTask.id), localTask);
         } else {
             const localTime = localTask.lastModified || 0;
             const cloudTime = cloudTask.lastModified || 0;
-            if (localTime > cloudTime) {
-                taskMap.set(localTask.id, localTask);
+            if (localTime >= cloudTime) {
+                taskMap.set(String(localTask.id), localTask);
             }
         }
     });
     return Array.from(taskMap.values());
+}
+
+function mergeDailySchedules(localSched, cloudSched) {
+    const merged = { ...(cloudSched || {}) };
+    const allKeys = new Set([...Object.keys(localSched || {}), ...Object.keys(cloudSched || {})]);
+
+    allKeys.forEach(key => {
+        const localList = (localSched && localSched[key]) || [];
+        const cloudList = (cloudSched && cloudSched[key]) || [];
+
+        const itemMap = new Map();
+        cloudList.forEach(item => { if (item && item.id) itemMap.set(String(item.id), item); });
+        localList.forEach(item => { if (item && item.id) itemMap.set(String(item.id), item); });
+
+        merged[key] = Array.from(itemMap.values());
+    });
+    return merged;
+}
+
+function mergeTimetable(localTt, cloudTt) {
+    return { ...(cloudTt || {}), ...(localTt || {}) };
+}
+
+function mergeFocusLogs(localLogs, cloudLogs) {
+    const logMap = new Map();
+    (cloudLogs || []).forEach(log => { if (log && log.id) logMap.set(String(log.id), log); });
+    (localLogs || []).forEach(log => { if (log && log.id) logMap.set(String(log.id), log); });
+    return Array.from(logMap.values()).sort((a, b) => b.id - a.id);
+}
+
+function mergeArraysUnique(localArr, cloudArr) {
+    return Array.from(new Set([...(cloudArr || []), ...(localArr || [])]));
 }
 
 async function saveUserDataToCloud() {
@@ -1523,12 +1554,6 @@ async function saveUserDataToCloud() {
         externalIcalUrl: localStorage.getItem('myExternalIcalUrl') || "",
         appTheme: currentAppTheme,
         appFont: currentAppFont,
-        
-        timestamps: {
-            timetable: getFeatureLastModified('timetable'),
-            dailySchedules: getFeatureLastModified('dailySchedules'),
-            categories: getFeatureLastModified('categories')
-        },
         updatedAt: serverTimestamp()
     };
 
@@ -1554,114 +1579,65 @@ async function syncDataWithCloud() {
         }
 
         const cloudData = docSnap.data();
-        const cloudTimestamps = cloudData.timestamps || {};
-        let needSaveToCloud = false;
 
+        // 1. テーマ・フォントの同期
         if (cloudData.appTheme || cloudData.appFont) {
             applyAppThemeAndFont(cloudData.appTheme || 'natural', cloudData.appFont || 'kiwi');
         }
 
+        // 2. タスクのマージ
         const localTasks = JSON.parse(localStorage.getItem('myTasks')) || [];
-        const cloudTasks = cloudData.tasks || [];
-        tasks = mergeTasksData(localTasks, cloudTasks);
+        tasks = mergeTasksData(localTasks, cloudData.tasks || []);
         localStorage.setItem('myTasks', JSON.stringify(tasks));
 
-        const features = [
-            { key: 'timetable', storageKey: 'myTimetable' },
-            { key: 'dailySchedules', storageKey: 'myDailySchedules' },
-            { key: 'categories', storageKey: 'myCategories' }
-        ];
+        // 3. スケジュールのマージ
+        const localSchedules = JSON.parse(localStorage.getItem('myDailySchedules')) || {};
+        dailySchedules = mergeDailySchedules(localSchedules, cloudData.dailySchedules || {});
+        localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
 
-        features.forEach(f => {
-            const cloudTime = cloudTimestamps[f.key] || 0;
-            const localTime = getFeatureLastModified(f.key);
+        // 4. 時間割のマージ
+        const localTimetable = JSON.parse(localStorage.getItem('myTimetable')) || {};
+        timetableData = mergeTimetable(localTimetable, cloudData.timetable || {});
+        localStorage.setItem('myTimetable', JSON.stringify(timetableData));
 
-            if (cloudTime > localTime) {
-                if (cloudData[f.key]) {
-                    localStorage.setItem(f.storageKey, JSON.stringify(cloudData[f.key]));
-                    localStorage.setItem(`lastModified_${f.key}`, cloudTime.toString());
-                    
-                    if (f.key === 'timetable') timetableData = cloudData.timetable || {};
-                    if (f.key === 'dailySchedules') dailySchedules = cloudData.dailySchedules || {};
-                    if (f.key === 'categories') customCategories = cloudData.categories || [];
-                }
-            } else if (localTime > cloudTime) {
-                needSaveToCloud = true;
-            }
-        });
+        // 5. 集中記録のマージ
+        const localLogs = JSON.parse(localStorage.getItem('myFocusLogs')) || [];
+        focusLogs = mergeFocusLogs(localLogs, cloudData.focusLogs || []);
+        localStorage.setItem('myFocusLogs', JSON.stringify(focusLogs));
 
+        // 6. カテゴリ・プリセット等のマージ
+        const localCat = JSON.parse(localStorage.getItem('myCategories')) || ["未分類", "提出物", "買い物"];
+        customCategories = mergeArraysUnique(localCat, cloudData.categories || []);
+        localStorage.setItem('myCategories', JSON.stringify(customCategories));
+
+        const localFocusSubj = JSON.parse(localStorage.getItem('myCustomFocusSubjects')) || [];
+        customFocusSubjects = mergeArraysUnique(localFocusSubj, cloudData.customFocusSubjects || []);
+        localStorage.setItem('myCustomFocusSubjects', JSON.stringify(customFocusSubjects));
+
+        if (cloudData.externalIcalUrl && !externalIcalUrl) {
+            externalIcalUrl = cloudData.externalIcalUrl;
+            localStorage.setItem('myExternalIcalUrl', externalIcalUrl);
+        }
+
+        // 7. 全画面の表示更新
         renderTimetable();
         updateSubjectSelectOptions();
         renderCategoryFilterTabs();
         updateCategorySelectOptions();
         renderTasks();
         if (typeof updateScheduleView === 'function') updateScheduleView();
+        renderCuteCalendar(currentViewYear, currentViewMonth);
+        updateDashboard();
 
-        if (needSaveToCloud) {
-            await saveUserDataToCloud();
-        } else {
-            await saveUserDataToCloud();
-        }
+        // 8. 合体された最新データをクラウドにも保存（上書き防止＆統合確定）
+        await saveUserDataToCloud();
 
         if (typeof messageArea !== 'undefined' && messageArea) {
-            messageArea.textContent = '☁️ すべてのデータを安全に同期・合体しました！';
+            messageArea.textContent = '☁️ オフライン時の変更とクラウドデータを安全に統合しました！';
         }
 
     } catch (error) {
         console.error("同期エラー:", error);
-    }
-}
-
-async function loadUserDataFromCloud(uid) {
-    if (!window.firebaseDb) return;
-    const { db, doc, getDoc } = window.firebaseDb;
-
-    try {
-        const docRef = doc(db, 'users', uid);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.timetable) localStorage.setItem('myTimetable', JSON.stringify(data.timetable));
-            if (data.tasks) localStorage.setItem('myTasks', JSON.stringify(data.tasks));
-            if (data.categories) localStorage.setItem('myCategories', JSON.stringify(data.categories));
-            if (data.customFocusSubjects) localStorage.setItem('myCustomFocusSubjects', JSON.stringify(data.customFocusSubjects));
-            if (data.dailySchedules) localStorage.setItem('myDailySchedules', JSON.stringify(data.dailySchedules));
-            if (data.schedulePresets) localStorage.setItem('mySchedulePresets', JSON.stringify(data.schedulePresets));
-            if (data.focusLogs) localStorage.setItem('myFocusLogs', JSON.stringify(data.focusLogs));
-            if (data.externalIcalUrl) {
-                localStorage.setItem('myExternalIcalUrl', data.externalIcalUrl);
-                externalIcalUrl = data.externalIcalUrl;
-                externalIcalUrlInput.value = externalIcalUrl;
-                fetchAndParseIcal(externalIcalUrl);
-            }
-
-            if (data.appTheme || data.appFont) {
-                applyAppThemeAndFont(data.appTheme || 'natural', data.appFont || 'kiwi');
-            }
-
-            timetableData = data.timetable || {};
-            tasks = data.tasks || [];
-            customCategories = data.categories || ["未分類", "提出物", "買い物"];
-            customFocusSubjects = data.customFocusSubjects || [];
-            dailySchedules = data.dailySchedules || {};
-            savedSchedulePresets = data.schedulePresets || [];
-            focusLogs = data.focusLogs || [];
-
-            checkAndResetClassTasks();
-            renderPresetButtons();
-            updateScheduleView();
-            renderCuteCalendar(currentViewYear, currentViewMonth);
-            renderTimetable();
-            updateSubjectSelectOptions();
-            renderCategoryFilterTabs();
-            updateCategorySelectOptions();
-            renderTasks();
-            updateDashboard();
-            console.log("☁️ クラウドからデータを同期しました");
-        }
-    } catch (error) {
-        console.error("データ同期エラー:", error);
     }
 }
 
