@@ -270,14 +270,12 @@ function applyAppThemeAndFont(themeName, fontName) {
     currentAppTheme = themeName;
     currentAppFont = fontName;
 
-    // データ属性でカラーテーマを適用
     if (themeName === 'natural') {
         document.documentElement.removeAttribute('data-theme');
     } else {
         document.documentElement.setAttribute('data-theme', themeName);
     }
 
-    // フォントの切り替え
     let fontCssVal = "'Kiwi Maru', 'Yomogi', 'Zen Maru Gothic', cursive, sans-serif";
     if (fontName === 'yomogi') {
         fontCssVal = "'Yomogi', 'Kiwi Maru', cursive, sans-serif";
@@ -944,6 +942,7 @@ function updateScheduleView() {
     renderScheduleList(items);
 }
 
+// 特定日付のスケジュール読み込み（個別の変更・削除済み設定 ＞ 時間割自動合成）
 function getScheduleForDate(dateStr) {
     const d = new Date(dateStr);
     const dayOfWeek = d.getDay();
@@ -951,10 +950,14 @@ function getScheduleForDate(dateStr) {
     const currentDayChar = dayStrMap[dayOfWeek];
     const weeklyKey = `weekly_${dayOfWeek}`;
 
-    let baseItems = [];
+    // その日のスケジュール（削除・変更済み含む）が存在する場合はそれをそのまま返す（削除した授業の復活を防止）
     if (dailySchedules[dateStr]) {
-        baseItems = [...dailySchedules[dateStr]];
-    } else if (dailySchedules[weeklyKey]) {
+        return dailySchedules[dateStr];
+    }
+
+    // まだ操作されていない日付のみ、毎週の繰り返し予定 ＋ 時間割の授業を自動補完
+    let baseItems = [];
+    if (dailySchedules[weeklyKey]) {
         baseItems = [...dailySchedules[weeklyKey]];
     }
 
@@ -1073,7 +1076,6 @@ function startEditingSchedItem(item) {
     openSchedModal();
 }
 
-// 24時間円グラフ高精度描画 (DPR最適化で拡大時もくっきり)
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
@@ -1329,7 +1331,7 @@ function deleteScheduleItem(item) {
     if (item.isWeekly) {
         repeatOptionModalOverlay.style.display = 'flex';
     } else {
-        executeDeleteSchedule(false);
+        executeDeleteSchedule(true);
     }
 }
 
