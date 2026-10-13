@@ -26,7 +26,7 @@ const days = ["月", "火", "水", "木", "金"];
 const dayMap = { "日": 0, "月": 1, "火": 2, "水": 3, "木": 4, "金": 5, "土": 6 };
 const dayNames = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
 
-// 祝日データ (簡易定義)
+// 祝日データ
 const japaneseHolidays = {
     "2026-01-01": "元旦", "2026-01-12": "成人の日", "2026-02-11": "建国記念の日",
     "2026-02-23": "天皇誕生日", "2026-03-20": "春分の日", "2026-04-29": "昭和の日",
@@ -55,6 +55,8 @@ let savedSchedulePresets = JSON.parse(localStorage.getItem('mySchedulePresets'))
 ];
 let focusLogs = JSON.parse(localStorage.getItem('myFocusLogs')) || [];
 let externalIcalUrl = localStorage.getItem('myExternalIcalUrl') || "";
+let currentAppTheme = localStorage.getItem('myAppTheme') || "natural";
+let currentAppFont = localStorage.getItem('myAppFont') || "kiwi";
 let fetchedIcalEvents = [];
 
 let activeCategoryFilter = "すべて";
@@ -66,7 +68,6 @@ let selectedColor = pastel15ModalColors[0];
 let schedSelectedColor = pastel30Colors[0];
 let currentUser = null;
 
-// 今日の現在日付を取得
 function getTodayIsoString() {
     return new Date().toISOString().split('T')[0];
 }
@@ -100,7 +101,15 @@ const nextScheduleText = document.getElementById('nextScheduleText');
 const dueThisWeekTaskList = document.getElementById('dueThisWeekTaskList');
 const todayAttendanceContainer = document.getElementById('todayAttendanceContainer');
 
-// カレンダー新機能参照
+// テーマモーダル参照
+const openThemeModalBtn = document.getElementById('openThemeModalBtn');
+const themeModalOverlay = document.getElementById('themeModalOverlay');
+const themeModalCloseBtn = document.getElementById('themeModalCloseBtn');
+const themeSelect = document.getElementById('themeSelect');
+const fontSelect = document.getElementById('fontSelect');
+const saveThemeBtn = document.getElementById('saveThemeBtn');
+
+// カレンダー参照
 const cuteMonthTitle = document.getElementById('cuteMonthTitle');
 const monthPrevBtn = document.getElementById('monthPrevBtn');
 const monthNextBtn = document.getElementById('monthNextBtn');
@@ -122,7 +131,6 @@ const scheduleCanvas = document.getElementById('scheduleCanvas');
 const scheduleOverlayLabels = document.getElementById('scheduleOverlayLabels');
 const presetScheduleButtons = document.getElementById('presetScheduleButtons');
 
-// 予定追加/編集モーダル＆FAB要素
 const addSchedFabBtn = document.getElementById('addSchedFabBtn');
 const schedModalOverlay = document.getElementById('schedModalOverlay');
 const schedModalCloseBtn = document.getElementById('schedModalCloseBtn');
@@ -210,7 +218,6 @@ const pomodoroInfoArea = document.getElementById('pomodoroInfoArea');
 const countdownSettingsArea = document.getElementById('countdownSettingsArea');
 const countdownCustomMinutes = document.getElementById('countdownCustomMinutes');
 const pomodoroPhaseBadge = document.getElementById('pomodoroPhaseBadge');
-const timerDisplayBox = document.getElementById('timerDisplayBox');
 const timerClockText = document.getElementById('timerClockText');
 const startTimerBtn = document.getElementById('startTimerBtn');
 const pauseTimerBtn = document.getElementById('pauseTimerBtn');
@@ -221,8 +228,12 @@ window.addEventListener('DOMContentLoaded', () => {
     selectedSchedDate = getTodayIsoString();
     scheduleDateInput.value = selectedSchedDate;
     manualAttDateInput.value = selectedSchedDate;
-    
+
+    // デザインテーマ＆フォントの適用
+    applyAppThemeAndFont(currentAppTheme, currentAppFont);
+
     setupSidebarEvents();
+    setupThemeModalEvents();
     init30ColorPicker();
     initModal15ColorPicker();
     initDurationSelectOptions();
@@ -254,13 +265,66 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// テーマ＆フォント適用処理
+function applyAppThemeAndFont(themeName, fontName) {
+    currentAppTheme = themeName;
+    currentAppFont = fontName;
+
+    // データ属性でカラーテーマを適用
+    if (themeName === 'natural') {
+        document.documentElement.removeAttribute('data-theme');
+    } else {
+        document.documentElement.setAttribute('data-theme', themeName);
+    }
+
+    // フォントの切り替え
+    let fontCssVal = "'Kiwi Maru', 'Yomogi', 'Zen Maru Gothic', cursive, sans-serif";
+    if (fontName === 'yomogi') {
+        fontCssVal = "'Yomogi', 'Kiwi Maru', cursive, sans-serif";
+    } else if (fontName === 'zen') {
+        fontCssVal = "'Zen Maru Gothic', 'Kiwi Maru', sans-serif";
+    } else if (fontName === 'standard') {
+        fontCssVal = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    }
+    document.documentElement.style.setProperty('--app-font', fontCssVal);
+
+    localStorage.setItem('myAppTheme', themeName);
+    localStorage.setItem('myAppFont', fontName);
+
+    if (themeSelect) themeSelect.value = themeName;
+    if (fontSelect) fontSelect.value = fontName;
+}
+
+function setupThemeModalEvents() {
+    if (openThemeModalBtn) {
+        openThemeModalBtn.onclick = () => {
+            themeSelect.value = currentAppTheme;
+            fontSelect.value = currentAppFont;
+            themeModalOverlay.style.display = 'flex';
+            closeSidebar();
+        };
+    }
+
+    if (themeModalCloseBtn) {
+        themeModalCloseBtn.onclick = () => themeModalOverlay.style.display = 'none';
+    }
+
+    if (saveThemeBtn) {
+        saveThemeBtn.onclick = async () => {
+            const selectedTheme = themeSelect.value;
+            const selectedFont = fontSelect.value;
+            applyAppThemeAndFont(selectedTheme, selectedFont);
+            themeModalOverlay.style.display = 'none';
+            await saveUserDataToCloud();
+            if (messageArea) messageArea.textContent = '🎨 デザイン＆テーマを更新しました！';
+        };
+    }
+}
+
 // オンライン復帰時の同期
 window.addEventListener('online', async () => {
-    if (messageArea) messageArea.textContent = '🌐 オンラインに復帰しました。同期中...';
-    await saveUserDataToCloud();
-    setTimeout(() => {
-        if (messageArea) messageArea.textContent = '☁️ クラウドへ自動バックアップしました！';
-    }, 1500);
+    if (messageArea) messageArea.textContent = '🌐 オンラインに復帰しました。同期確認中...';
+    await syncDataWithCloud();
 });
 
 function setupSidebarEvents() {
@@ -275,6 +339,7 @@ function setupSidebarEvents() {
     document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const targetId = btn.getAttribute('data-target');
+            if (!targetId) return;
             
             document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -305,7 +370,6 @@ function closeSidebar() {
     sidebarOverlay.style.display = 'none';
 }
 
-// 🌸 かわいい月間カレンダー制御ロジック
 function setupCuteCalendarEvents() {
     monthPrevBtn.onclick = () => {
         currentViewMonth--;
@@ -347,7 +411,6 @@ function renderCuteCalendar(year, month) {
 
     const todayIso = getTodayIsoString();
 
-    // 前月の日付埋め
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
         const dayNum = prevMonthLastDay - i;
@@ -355,13 +418,11 @@ function renderCuteCalendar(year, month) {
         cuteCalendarDaysGrid.appendChild(cell);
     }
 
-    // 当月の日付
     for (let day = 1; day <= totalDays; day++) {
         const cell = createCuteDayCell(day, false, year, month, todayIso);
         cuteCalendarDaysGrid.appendChild(cell);
     }
 
-    // 翌月の日付埋め
     const totalCells = startingDayOfWeek + totalDays;
     const remainingCells = (42 - totalCells) % 7;
     for (let day = 1; day <= remainingCells; day++) {
@@ -389,7 +450,6 @@ function createCuteDayCell(dayNum, isOtherMonth, year, month, todayIso) {
     numSpan.textContent = dayNum;
     cell.appendChild(numSpan);
 
-    // 祝日チェック
     if (japaneseHolidays[dateIso]) {
         const holidaySpan = document.createElement('span');
         holidaySpan.className = 'cute-holiday-label';
@@ -397,12 +457,11 @@ function createCuteDayCell(dayNum, isOtherMonth, year, month, todayIso) {
         cell.appendChild(holidaySpan);
     }
 
-    // 予定ドットマーカー
     const dotsContainer = document.createElement('div');
     dotsContainer.className = 'cute-events-dots';
 
     const schedItems = getScheduleForDate(dateIso);
-    const dayTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(dateIso) && !t.completed);
+    const dayTasks = tasks.filter(t => t.dueDate && t.dueDate.startsWith(dateIso) && !t.completed && !t.isDeleted);
     const dayIcalEvents = fetchedIcalEvents.filter(e => e.date === dateIso);
 
     if (schedItems.length > 0) {
@@ -422,7 +481,6 @@ function createCuteDayCell(dayNum, isOtherMonth, year, month, todayIso) {
     }
 
     cell.appendChild(dotsContainer);
-
     cell.onclick = () => openDayDetailModal(dateIso, schedItems, dayTasks, dayIcalEvents);
 
     return cell;
@@ -433,7 +491,7 @@ function openDayDetailModal(dateIso, schedItems, dayTasks, dayIcalEvents) {
     dayDetailContentList.innerHTML = '';
 
     if (schedItems.length === 0 && dayTasks.length === 0 && dayIcalEvents.length === 0) {
-        dayDetailContentList.innerHTML = '<li style="color:#aaa; border:none; background:none;">予定やタスクはありません</li>';
+        dayDetailContentList.innerHTML = '<li style="color:var(--text-sub); border:none; background:none;">予定やタスクはありません</li>';
     } else {
         schedItems.forEach(item => {
             const li = document.createElement('li');
@@ -519,7 +577,7 @@ function renderGoogleCalendarListDashboard() {
     listEl.innerHTML = '';
 
     if (fetchedIcalEvents.length === 0) {
-        listEl.innerHTML = '<li style="color:#aaa; border:none; background:none;">同期された外部カレンダーの予定はありません</li>';
+        listEl.innerHTML = '<li style="color:var(--text-sub); border:none; background:none;">同期された外部カレンダーの予定はありません</li>';
         return;
     }
 
@@ -554,13 +612,13 @@ function updateDashboard() {
     if (currentItem) {
         currentScheduleText.innerHTML = `<span style="color:#27ae60;">●</span> <strong>${currentItem.title}</strong> (${minToTimeStr(currentItem.startMin)} - ${minToTimeStr(currentItem.endMin)})`;
     } else {
-        currentScheduleText.innerHTML = `<span style="color:#aaa;">現在進行中の予定はありません</span>`;
+        currentScheduleText.innerHTML = `<span style="color:var(--text-sub);">現在進行中の予定はありません</span>`;
     }
 
     if (nextItem) {
         nextScheduleText.innerHTML = `⏳ <strong>${nextItem.title}</strong> (${minToTimeStr(nextItem.startMin)} 〜)`;
     } else {
-        nextScheduleText.innerHTML = `<span style="color:#aaa;">本日これ以降の予定はありません</span>`;
+        nextScheduleText.innerHTML = `<span style="color:var(--text-sub);">本日これ以降の予定はありません</span>`;
     }
 
     renderDueThisWeekTasks();
@@ -575,7 +633,7 @@ function renderTodayAttendanceCard() {
     const todayIsoStr = getTodayIsoString();
 
     if (!days.includes(todayChar)) {
-        todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:#888; margin:0;">本日は休校日（土日）です。</p>';
+        todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:var(--text-sub); margin:0;">本日は休校日（土日）です。</p>';
         return;
     }
 
@@ -586,7 +644,7 @@ function renderTodayAttendanceCard() {
     }).filter(Boolean);
 
     if (todayClasses.length === 0) {
-        todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:#888; margin:0;">本日の時間割授業はありません。</p>';
+        todayAttendanceContainer.innerHTML = '<p style="font-size:0.85rem; color:var(--text-sub); margin:0;">本日の時間割授業はありません。</p>';
         return;
     }
 
@@ -613,8 +671,8 @@ function renderTodayAttendanceCard() {
         statuses.forEach(st => {
             const btn = document.createElement('button');
             btn.className = `today-att-btn ${currentStatus === st.text ? 'active' : ''}`;
-            btn.style.backgroundColor = currentStatus === st.text ? st.color : '#f0ece1';
-            btn.style.color = currentStatus === st.text ? '#ffffff' : '#555555';
+            btn.style.backgroundColor = currentStatus === st.text ? st.color : 'var(--card-bg)';
+            btn.style.color = currentStatus === st.text ? '#ffffff' : 'var(--text-main)';
             btn.textContent = st.text;
 
             btn.onclick = () => saveAttendanceStatus(item.key, todayIsoStr, st.text);
@@ -638,6 +696,7 @@ async function saveAttendanceStatus(cellKey, dateStr, statusStr) {
     }
 
     localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    setFeatureLastModified('timetable');
     await saveUserDataToCloud();
     renderTodayAttendanceCard();
     if (activeCellKey === cellKey) updateAttendanceModalView();
@@ -647,7 +706,7 @@ async function saveAttendanceStatus(cellKey, dateStr, statusStr) {
 function renderDueThisWeekTasks() {
     dueThisWeekTaskList.innerHTML = '';
     if (!Array.isArray(tasks) || tasks.length === 0) {
-        dueThisWeekTaskList.innerHTML = '<li style="color:#aaa; border:none;">今週期限のタスクはありません</li>';
+        dueThisWeekTaskList.innerHTML = '<li style="color:var(--text-sub); border:none;">今週期限のタスクはありません</li>';
         return;
     }
 
@@ -656,19 +715,19 @@ function renderDueThisWeekTasks() {
     endOfWeek.setDate(now.getDate() + 7);
 
     const dueTasks = tasks.filter(t => {
-        if (!t.dueDate || t.completed) return false;
+        if (!t.dueDate || t.completed || t.isDeleted) return false;
         const due = new Date(t.dueDate);
         return due >= now && due <= endOfWeek;
     });
 
     if (dueTasks.length === 0) {
-        dueThisWeekTaskList.innerHTML = '<li style="color:#aaa; border:none;">今週期限のタスクはありません</li>';
+        dueThisWeekTaskList.innerHTML = '<li style="color:var(--text-sub); border:none;">今週期限のタスクはありません</li>';
         return;
     }
 
     dueTasks.forEach(task => {
         const li = document.createElement('li');
-        li.style.borderBottom = '1px solid #eae5db';
+        li.style.borderBottom = '1px dashed var(--card-border)';
         li.style.padding = '8px 0';
 
         li.innerHTML = `
@@ -677,7 +736,7 @@ function renderDueThisWeekTasks() {
                     <span class="due-tag">${formatDueDate(task.dueDate)}</span>
                     <strong style="font-size:0.92rem; margin-left:6px;">${task.text}</strong>
                 </div>
-                <button class="btn-secondary" style="font-size:0.75rem; padding:2px 6px;" onclick="toggleTask(${task.id})">完了にする</button>
+                <button class="btn-secondary" style="font-size:0.75rem; padding:2px 6px;" onclick="toggleTask('${task.id}')">完了にする</button>
             </div>
         `;
         dueThisWeekTaskList.appendChild(li);
@@ -761,7 +820,7 @@ function setupInputModeSwitch() {
 function renderPresetButtons() {
     presetScheduleButtons.innerHTML = '';
     if (!savedSchedulePresets || savedSchedulePresets.length === 0) {
-        presetScheduleButtons.innerHTML = '<span style="font-size:0.8rem; color:#aaa;">まだ履歴がありません</span>';
+        presetScheduleButtons.innerHTML = '<span style="font-size:0.8rem; color:var(--text-sub);">まだ履歴がありません</span>';
         return;
     }
 
@@ -961,7 +1020,6 @@ function handleCanvasClick(e) {
     const y = e.clientY - rect.top - (cssHeight / 2);
 
     const radius = Math.sqrt(x * x + y * y);
-    // グラフ半径 (142/320)
     const chartRadius = cssWidth * (142 / 320);
 
     if (radius < chartRadius * 0.4 || radius > chartRadius) return;
@@ -1015,12 +1073,12 @@ function startEditingSchedItem(item) {
     openSchedModal();
 }
 
+// 24時間円グラフ高精度描画 (DPR最適化で拡大時もくっきり)
 function draw24HourChart(items) {
     const ctx = scheduleCanvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    // 基準描画領域（余白を最小化して円を最大化）
-    const baseWidth = 320;
-    const baseHeight = 320;
+    const baseWidth = 340;
+    const baseHeight = 340;
 
     scheduleCanvas.width = baseWidth * dpr;
     scheduleCanvas.height = baseHeight * dpr;
@@ -1030,7 +1088,6 @@ function draw24HourChart(items) {
 
     const centerX = baseWidth / 2;
     const centerY = baseHeight / 2;
-    // 半径をギリギリ（142px）まで拡大し、カード枠いっぱいに表示
     const radius = 142;
 
     ctx.clearRect(0, 0, baseWidth, baseHeight);
@@ -1069,7 +1126,6 @@ function draw24HourChart(items) {
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // 時刻表示文字を小さく（9px）し、外周すぐ内側・枠ギリギリに配置
         const textX = centerX + Math.cos(angle) * (radius + 10);
         const textY = centerY + Math.sin(angle) * (radius + 10);
         ctx.font = 'bold 9px sans-serif';
@@ -1128,7 +1184,7 @@ function renderOverlayLabelsHTML(items, centerX, centerY, radius) {
 function renderScheduleList(items) {
     scheduleList.innerHTML = '';
     if (items.length === 0) {
-        scheduleList.innerHTML = '<li style="color:#aaa; border:none; background:none;">予定はありません</li>';
+        scheduleList.innerHTML = '<li style="color:var(--text-sub); border:none; background:none;">予定はありません</li>';
         return;
     }
 
@@ -1145,7 +1201,7 @@ function renderScheduleList(items) {
         li.innerHTML = `
             <div>
                 ${colorBadge}<strong>${item.title}</strong>
-                <span style="font-size:0.8rem; color:#777; margin-left:8px;">${startStr} - ${endStr}</span>
+                <span style="font-size:0.8rem; color:var(--text-sub); margin-left:8px;">${startStr} - ${endStr}</span>
                 ${item.isWeekly ? '<span style="font-size:0.7rem; background:#e8f8f0; color:#27ae60; padding:1px 4px; border-radius:4px; margin-left:6px;">🔄 毎週</span>' : ''}
                 ${item.isAutoClass ? '<span style="font-size:0.7rem; background:#f0f7ff; color:#2980b9; padding:1px 4px; border-radius:4px; margin-left:6px;">🏫 時間割自動</span>' : ''}
             </div>
@@ -1255,6 +1311,7 @@ saveSchedBtn.addEventListener('click', async () => {
     }
 
     localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
+    setFeatureLastModified('dailySchedules');
     await saveUserDataToCloud();
 
     closeSchedModal();
@@ -1313,12 +1370,21 @@ async function executeDeleteSchedule(singleDayOnly) {
     }
 
     localStorage.setItem('myDailySchedules', JSON.stringify(dailySchedules));
+    setFeatureLastModified('dailySchedules');
     await saveUserDataToCloud();
     updateScheduleView();
     renderCuteCalendar(currentViewYear, currentViewMonth);
     updateDashboard();
     targetItemToDelete = null;
     if (messageArea) messageArea.textContent = '🗑 予定を削除しました。';
+}
+
+function setFeatureLastModified(featureKey) {
+    localStorage.setItem(`lastModified_${featureKey}`, Date.now().toString());
+}
+
+function getFeatureLastModified(featureKey) {
+    return parseInt(localStorage.getItem(`lastModified_${featureKey}`) || '0', 10);
 }
 
 function checkAndResetClassTasks() {
@@ -1373,7 +1439,6 @@ function setupAuthListeners() {
 
     const { auth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } = window.firebaseAuth;
 
-    // リダイレクトから戻ってきた時のログイン結果を取得
     getRedirectResult(auth).then(async (result) => {
         if (result && result.user) {
             currentUser = result.user;
@@ -1406,10 +1471,8 @@ function setupAuthListeners() {
     if (loginBtn) {
         loginBtn.addEventListener('click', () => {
             const provider = new GoogleAuthProvider();
-            // ポップアップがブロックされた場合はリダイレクトにフォールバック
             signInWithPopup(auth, provider).catch(error => {
                 if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
-                    console.warn("ポップアップがブロックされたためリダイレクト処理に切り替えます");
                     signInWithRedirect(auth, provider);
                 } else {
                     console.error("ログインエラー:", error);
@@ -1422,6 +1485,25 @@ function setupAuthListeners() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => signOut(auth));
     }
+}
+
+function mergeTasksData(localTasks, cloudTasks) {
+    const taskMap = new Map();
+    cloudTasks.forEach(task => { if (task && task.id) taskMap.set(task.id, task); });
+    localTasks.forEach(localTask => {
+        if (!localTask || !localTask.id) return;
+        const cloudTask = taskMap.get(localTask.id);
+        if (!cloudTask) {
+            taskMap.set(localTask.id, localTask);
+        } else {
+            const localTime = localTask.lastModified || 0;
+            const cloudTime = cloudTask.lastModified || 0;
+            if (localTime > cloudTime) {
+                taskMap.set(localTask.id, localTask);
+            }
+        }
+    });
+    return Array.from(taskMap.values());
 }
 
 async function saveUserDataToCloud() {
@@ -1437,6 +1519,14 @@ async function saveUserDataToCloud() {
         schedulePresets: JSON.parse(localStorage.getItem('mySchedulePresets')) || [],
         focusLogs: JSON.parse(localStorage.getItem('myFocusLogs')) || [],
         externalIcalUrl: localStorage.getItem('myExternalIcalUrl') || "",
+        appTheme: currentAppTheme,
+        appFont: currentAppFont,
+        
+        timestamps: {
+            timetable: getFeatureLastModified('timetable'),
+            dailySchedules: getFeatureLastModified('dailySchedules'),
+            categories: getFeatureLastModified('categories')
+        },
         updatedAt: serverTimestamp()
     };
 
@@ -1445,6 +1535,78 @@ async function saveUserDataToCloud() {
         console.log("☁ クラウドへ自動バックアップ完了");
     } catch (error) {
         console.error("クラウドバックアップエラー:", error);
+    }
+}
+
+async function syncDataWithCloud() {
+    if (!currentUser || !window.firebaseDb) return;
+    const { db, doc, getDoc } = window.firebaseDb;
+
+    try {
+        const docRef = doc(db, 'users', currentUser.uid);
+        const docSnap = await getDoc(docRef);
+
+        if (!docSnap.exists()) {
+            await saveUserDataToCloud();
+            return;
+        }
+
+        const cloudData = docSnap.data();
+        const cloudTimestamps = cloudData.timestamps || {};
+        let needSaveToCloud = false;
+
+        if (cloudData.appTheme || cloudData.appFont) {
+            applyAppThemeAndFont(cloudData.appTheme || 'natural', cloudData.appFont || 'kiwi');
+        }
+
+        const localTasks = JSON.parse(localStorage.getItem('myTasks')) || [];
+        const cloudTasks = cloudData.tasks || [];
+        tasks = mergeTasksData(localTasks, cloudTasks);
+        localStorage.setItem('myTasks', JSON.stringify(tasks));
+
+        const features = [
+            { key: 'timetable', storageKey: 'myTimetable' },
+            { key: 'dailySchedules', storageKey: 'myDailySchedules' },
+            { key: 'categories', storageKey: 'myCategories' }
+        ];
+
+        features.forEach(f => {
+            const cloudTime = cloudTimestamps[f.key] || 0;
+            const localTime = getFeatureLastModified(f.key);
+
+            if (cloudTime > localTime) {
+                if (cloudData[f.key]) {
+                    localStorage.setItem(f.storageKey, JSON.stringify(cloudData[f.key]));
+                    localStorage.setItem(`lastModified_${f.key}`, cloudTime.toString());
+                    
+                    if (f.key === 'timetable') timetableData = cloudData.timetable || {};
+                    if (f.key === 'dailySchedules') dailySchedules = cloudData.dailySchedules || {};
+                    if (f.key === 'categories') customCategories = cloudData.categories || [];
+                }
+            } else if (localTime > cloudTime) {
+                needSaveToCloud = true;
+            }
+        });
+
+        renderTimetable();
+        updateSubjectSelectOptions();
+        renderCategoryFilterTabs();
+        updateCategorySelectOptions();
+        renderTasks();
+        if (typeof updateScheduleView === 'function') updateScheduleView();
+
+        if (needSaveToCloud) {
+            await saveUserDataToCloud();
+        } else {
+            await saveUserDataToCloud();
+        }
+
+        if (typeof messageArea !== 'undefined' && messageArea) {
+            messageArea.textContent = '☁️ すべてのデータを安全に同期・合体しました！';
+        }
+
+    } catch (error) {
+        console.error("同期エラー:", error);
     }
 }
 
@@ -1470,6 +1632,10 @@ async function loadUserDataFromCloud(uid) {
                 externalIcalUrl = data.externalIcalUrl;
                 externalIcalUrlInput.value = externalIcalUrl;
                 fetchAndParseIcal(externalIcalUrl);
+            }
+
+            if (data.appTheme || data.appFont) {
+                applyAppThemeAndFont(data.appTheme || 'natural', data.appFont || 'kiwi');
             }
 
             timetableData = data.timetable || {};
@@ -1577,6 +1743,7 @@ function renderCustomCategoryManageList() {
             }
             customCategories.splice(index, 1);
             localStorage.setItem('myCategories', JSON.stringify(customCategories));
+            setFeatureLastModified('categories');
             await saveUserDataToCloud();
             renderCategoryFilterTabs();
             updateCategorySelectOptions();
@@ -1598,6 +1765,7 @@ addNewListBtn.onclick = async () => {
     }
     customCategories.push(newCat);
     localStorage.setItem('myCategories', JSON.stringify(customCategories));
+    setFeatureLastModified('categories');
     await saveUserDataToCloud();
     newListNameInput.value = '';
     renderCategoryFilterTabs();
@@ -1655,7 +1823,7 @@ function openCellModal(key, day, period) {
         modalSubjectTitle.textContent = cellData.subject;
         modalSubjectMeta.textContent = `${day}曜 ${period}限 | 👤 ${cellData.teacher || '教員未登録'} | 🏫 ${cellData.room || '教室未登録'}`;
         if (cellData.email) modalTeacherEmail.innerHTML = `✉️ <a href="mailto:${cellData.email}">${cellData.email}</a>`;
-        else modalTeacherEmail.textContent = '✉️️ メールアドレス未登録';
+        else modalTeacherEmail.textContent = '✉ メールアドレス未登録';
 
         updateAttendanceModalView();
         renderMemos(cellData.memos || []);
@@ -1678,7 +1846,7 @@ function updateAttendanceModalView() {
     const dateKeys = Object.keys(attendance).sort().reverse();
 
     if (dateKeys.length === 0) {
-        attendanceHistoryList.innerHTML = '<li style="color:#aaa; border:none; background:none;">出欠の記録はありません</li>';
+        attendanceHistoryList.innerHTML = '<li style="color:var(--text-sub); border:none; background:none;">出欠の記録はありません</li>';
     } else {
         dateKeys.forEach(dateStr => {
             const status = attendance[dateStr];
@@ -1769,6 +1937,7 @@ saveSubjectBtn.onclick = async () => {
     };
 
     localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+    setFeatureLastModified('timetable');
     await saveUserDataToCloud();
     renderTimetable();
     updateSubjectSelectOptions();
@@ -1783,6 +1952,7 @@ deleteSubjectBtn.onclick = async () => {
     if (confirm('このコマの科目を削除しますか？')) {
         delete timetableData[activeCellKey];
         localStorage.setItem('myTimetable', JSON.stringify(timetableData));
+        setFeatureLastModified('timetable');
         await saveUserDataToCloud();
         renderTimetable();
         updateSubjectSelectOptions();
@@ -1822,7 +1992,7 @@ async function deleteMemo(memoId) {
 function renderMemos(memos) {
     memoList.innerHTML = '';
     if (memos.length === 0) {
-        memoList.innerHTML = '<li style="color:#aaa; border:none; background:none;">メモはありません</li>';
+        memoList.innerHTML = '<li style="color:var(--text-sub); border:none; background:none;">メモはありません</li>';
         return;
     }
 
@@ -1902,13 +2072,16 @@ addTaskBtn.addEventListener('click', async () => {
     }
 
     if (!Array.isArray(tasks)) tasks = [];
+    const now = Date.now();
 
     if (editingTaskId) {
         tasks = tasks.map(t => {
             if (t.id === editingTaskId) {
                 return {
                     ...t, text: text, category: selectedCategory, subject: selectedSubject, dueDate: dueDateTime,
-                    repeat: { type: repeatType, days: repeatDays, until: repeatUntil }
+                    repeat: { type: repeatType, days: repeatDays, until: repeatUntil },
+                    lastModified: now,
+                    isDeleted: false
                 };
             }
             return t;
@@ -1917,9 +2090,12 @@ addTaskBtn.addEventListener('click', async () => {
         resetTaskForm();
     } else {
         tasks.push({
-            id: Date.now(), text: text, category: selectedCategory, subject: selectedSubject, completed: false,
+            id: `task_${now}_${Math.random().toString(36).substr(2, 5)}`,
+            text: text, category: selectedCategory, subject: selectedSubject, completed: false,
             dueDate: dueDateTime, resetDate: null, note: '',
-            repeat: { type: repeatType, days: repeatDays, until: repeatUntil }
+            repeat: { type: repeatType, days: repeatDays, until: repeatUntil },
+            lastModified: now,
+            isDeleted: false
         });
         if (messageArea) messageArea.textContent = '💾 タスクを追加しました！';
         resetTaskForm();
@@ -2001,7 +2177,7 @@ async function saveTaskNote(id, noteText) {
     if (!Array.isArray(tasks)) return;
 
     tasks = tasks.map(t => {
-        if (t.id === id) return { ...t, note: noteText.trim() };
+        if (t.id === id) return { ...t, note: noteText.trim(), lastModified: Date.now() };
         return t;
     });
 
@@ -2025,7 +2201,7 @@ async function toggleTask(id) {
                 nextResetDate = null;
             }
 
-            return { ...task, completed: nextCompletedState, resetDate: nextResetDate };
+            return { ...task, completed: nextCompletedState, resetDate: nextResetDate, lastModified: Date.now() };
         }
         return task;
     });
@@ -2039,7 +2215,18 @@ async function toggleTask(id) {
 
 async function deleteTask(id) {
     if (!Array.isArray(tasks)) return;
-    tasks = tasks.filter(task => task.id !== id);
+
+    tasks = tasks.map(task => {
+        if (task.id === id) {
+            return {
+                ...task,
+                isDeleted: true,
+                lastModified: Date.now()
+            };
+        }
+        return task;
+    });
+
     if (editingTaskId === id) resetTaskForm();
 
     localStorage.setItem('myTasks', JSON.stringify(tasks));
@@ -2071,17 +2258,18 @@ function formatRepeatInfo(repeat, resetDate) {
 function renderTasks() {
     taskList.innerHTML = '';
     if (!Array.isArray(tasks) || tasks.length === 0) {
-        taskList.innerHTML = '<li style="color:#aaa; border:none;">タスクはありません</li>';
+        taskList.innerHTML = '<li style="color:var(--text-sub); border:none;">タスクはありません</li>';
         return;
     }
 
     const filteredTasks = tasks.filter(task => {
+        if (task.isDeleted) return false;
         if (activeCategoryFilter === 'すべて') return true;
         return (task.category || '未分類') === activeCategoryFilter;
     });
 
     if (filteredTasks.length === 0) {
-        taskList.innerHTML = `<li style="color:#aaa; border:none;">「${activeCategoryFilter}」のタスクはありません</li>`;
+        taskList.innerHTML = `<li style="color:var(--text-sub); border:none;">「${activeCategoryFilter}」のタスクはありません</li>`;
         return;
     }
 
@@ -2351,7 +2539,7 @@ function updateFocusTargetOptions() {
     addNewOpt.textContent = '➕ 新しい科目を自由追加...';
     focusTargetSelect.appendChild(addNewOpt);
 
-    tasks.filter(t => !t.completed).forEach(t => {
+    tasks.filter(t => !t.completed && !t.isDeleted).forEach(t => {
         const opt = document.createElement('option');
         opt.value = `📝 タスク: ${t.text}`;
         opt.textContent = `📝 タスク: ${t.text}`;
